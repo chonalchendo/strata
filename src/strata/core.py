@@ -1,10 +1,15 @@
+from __future__ import annotations
+
 from datetime import timedelta
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 import pydantic as pdt
 
 import strata.errors as errors
 import strata.sources as sources
+
+if TYPE_CHECKING:
+    import strata.checks as checks
 
 
 class StrataBaseModel(pdt.BaseModel):
@@ -12,14 +17,77 @@ class StrataBaseModel(pdt.BaseModel):
 
 
 class FeatureTable(StrataBaseModel):
+    """Table where features are defined and computed.
+
+    FeatureTable supports:
+    - Source from BatchSource/StreamSource/RealTimeSource
+    - Source from another FeatureTable (DAG dependencies)
+    - Optional schedule tag for materialization scheduling
+    - Feature definitions via aggregate() and @feature decorator
+
+    Example:
+        user_transactions = FeatureTable(
+            name="user_transactions",
+            source=transactions,  # BatchSource
+            entity=user,
+            timestamp_field="event_timestamp",
+            schedule="hourly",
+        )
+
+        # Derived table (DAG)
+        user_risk = FeatureTable(
+            name="user_risk",
+            source=user_transactions,  # FeatureTable dependency
+            entity=user,
+            timestamp_field="event_timestamp",
+        )
+    """
     name: str
-    description: str
-    source: sources.SourceKind | SourceTable
+    description: str | None = None
+    source: sources.SourceKind | SourceTable | "FeatureTable"
     entity: Entity
     timestamp_field: str
-    schedule: str | None = None
+    schedule: str | None = None  # Optional tag, validated at preview/up
     owner: str | None = None
     tags: dict[str, str] | None = None
+    sla: "checks.SLA | None" = None
+
+    # Internal storage for features
+    _features: dict[str, Feature] = pdt.PrivateAttr(default_factory=dict)
+    _transforms: list[Callable] = pdt.PrivateAttr(default_factory=list)
+    _aggregates: list[dict] = pdt.PrivateAttr(default_factory=list)
+    _custom_features: list[dict] = pdt.PrivateAttr(default_factory=list)
+
+    model_config = pdt.ConfigDict(
+        arbitrary_types_allowed=True,
+    )
+
+    def __getattr__(self, name: str) -> Feature:
+        """Allow attribute-style access to features: table.feature_name"""
+        if name.startswith("_"):
+            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+        if name in self._features:
+            return self._features[name]
+        raise AttributeError(
+            f"FeatureTable '{self.name}' has no feature '{name}'. "
+            f"Define features using aggregate() or @feature decorator."
+        )
+
+    @property
+    def is_derived(self) -> bool:
+        """True if this table depends on another FeatureTable."""
+        return isinstance(self.source, FeatureTable)
+
+    @property
+    def source_name(self) -> str:
+        """Name of the source table or source."""
+        if isinstance(self.source, (FeatureTable, SourceTable)):
+            return self.source.name
+        return self.source.name
+
+    def features_list(self) -> list[Feature]:
+        """Return all features defined in this table."""
+        return list(self._features.values())
 
     def transform(self) -> Callable:
         def decorator():
