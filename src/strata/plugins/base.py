@@ -93,3 +93,12 @@ class BaseCompute(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     """
 
     pass
+
+
+class BaseSourceConfig(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+    """Base class for source connection configurations.
+
+    Source configs define how to connect to a data source.
+    Each backend (DuckDB, S3, Unity Catalog) provides its own config class.
+    """
+    pass
