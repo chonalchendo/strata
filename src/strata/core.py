@@ -100,18 +100,68 @@ class FeatureTable(StrataBaseModel):
         """Return all features defined in this table."""
         return list(object.__getattribute__(self, "_features").values())
 
-    def transform(self) -> Callable:
-        def decorator():
-            pass
+    def feature(
+        self,
+        name: str,
+        field: Field,
+    ) -> Callable[[Callable], Feature]:
+        """Decorator for custom Ibis-based feature logic.
 
-        # WHAT DOES THIS RETURN? A pyarrow table?
+        The decorated function receives ibis.Table and returns ibis.Column.
+
+        Example:
+            @user_transactions.feature(
+                name="spend_velocity",
+                field=Field(dtype="float64"),
+            )
+            def spend_velocity(t):
+                # t is ibis.Table
+                return (t.spend_90d - t.spend_90d.lag(7)) / t.spend_90d.lag(7)
+
+        Args:
+            name: Feature name
+            field: Field definition with dtype and validation
+
+        Returns:
+            Decorator that returns a Feature reference
+        """
+        def decorator(func: Callable) -> Feature:
+            # Store custom feature definition
+            custom_def = {
+                "name": name,
+                "field": field,
+                "func": func,
+            }
+            self._custom_features.append(custom_def)
+
+            # Create and store feature
+            feature = Feature(
+                name=name,
+                table_name=self.name,
+                field=field,
+            )
+            self._features[name] = feature
+            return feature
         return decorator
 
-    def feature(self) -> Feature:
-        def decorator() -> Feature:
-            return Feature()
+    def transform(self) -> Callable[[Callable], Callable]:
+        """Decorator for table-level transformations.
 
-        # WHAT DOES THIS RETURN? the Feature class?
+        The decorated function receives ibis.Table and returns ibis.Table.
+        Transforms are applied before feature computation.
+
+        Example:
+            @user_transactions.transform()
+            def filter_valid(t):
+                # t is ibis.Table
+                return t.filter(t.status == "completed").filter(t.amount > 0)
+
+        Returns:
+            Decorator that returns the original function
+        """
+        def decorator(func: Callable) -> Callable:
+            self._transforms.append(func)
+            return func
         return decorator
 
     def aggregate(
