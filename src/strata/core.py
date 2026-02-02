@@ -115,10 +115,54 @@ class FeatureTable(StrataBaseModel):
         return decorator
 
     def aggregate(
-        self, field: Field, dtype: str, column: str, function: str, window: timedelta
+        self,
+        name: str,
+        field: Field,
+        column: str,
+        function: str,
+        window: timedelta,
     ) -> Feature:
-        # WHAT DOES THIS RETURN? the Feature class?
-        pass
+        """Define a windowed aggregation feature.
+
+        Example:
+            spend_90d = user_transactions.aggregate(
+                name="spend_90d",
+                field=Field(dtype="float64", ge=0, not_null=True),
+                column="amount",
+                function="sum",
+                window=timedelta(days=90),
+            )
+
+        Supported functions: sum, count, avg, min, max, count_distinct
+
+        Args:
+            name: Feature name
+            field: Field definition with dtype and validation
+            column: Source column to aggregate
+            function: Aggregation function (sum, count, avg, min, max, count_distinct)
+            window: Time window for aggregation
+
+        Returns:
+            Feature reference that can be used in Dataset
+        """
+        # Store aggregation definition for later compilation
+        agg_def = {
+            "name": name,
+            "field": field,
+            "column": column,
+            "function": function,
+            "window": window,
+        }
+        self._aggregates.append(agg_def)
+
+        # Create and store feature
+        feature = Feature(
+            name=name,
+            table_name=self.name,
+            field=field,
+        )
+        self._features[name] = feature
+        return feature
 
     def changes(self, start: str, end: str):
         # WHAT DOES THIS RETURN? A Pyarrow table?
