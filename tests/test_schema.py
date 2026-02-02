@@ -1,4 +1,3 @@
-import pytest
 
 import strata.core as core
 

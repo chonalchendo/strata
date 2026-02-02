@@ -139,8 +139,7 @@ class TestComputeDiff:
         """Test with creates, updates, deletes, and unchanged."""
         # Current state: entity_a (v1), entity_b (same)
         entity_a = core.Entity(name="entity_a", join_keys=["id"])
-        spec_a = discovery.serialize_to_spec(entity_a, "entity")
-        json_a = discovery.spec_to_json(spec_a)
+        _spec_a = discovery.serialize_to_spec(entity_a, "entity")
 
         entity_b = core.Entity(name="entity_b", join_keys=["id"])
         spec_b = discovery.serialize_to_spec(entity_b, "entity")

@@ -1,6 +1,5 @@
 from datetime import timedelta
 
-import pytest
 
 import strata.sources as sources
 from strata.plugins.duckdb import DuckDBSourceConfig

@@ -1,7 +1,7 @@
-import pytest
 from strata.plugins.base import BaseSourceConfig
 from strata.plugins.duckdb import DuckDBSourceConfig
 from strata.plugins.local.storage import LocalSourceConfig
+
 
 class TestDuckDBSourceConfig:
     def test_creates_with_path(self):
@@ -16,6 +16,7 @@ class TestDuckDBSourceConfig:
     def test_inherits_from_base(self):
         config = DuckDBSourceConfig(path="./test.parquet")
         assert isinstance(config, BaseSourceConfig)
+
 
 class TestLocalSourceConfig:
     def test_creates_with_path(self):

@@ -105,9 +105,7 @@ class SqliteRegistry(base.BaseRegistry):
                     "INSERT INTO meta (key, value) VALUES ('lineage', ?)",
                     (str(uuid.uuid4()),),
                 )
-                cursor.execute(
-                    "INSERT INTO meta (key, value) VALUES ('serial', '0')"
-                )
+                cursor.execute("INSERT INTO meta (key, value) VALUES ('serial', '0')")
                 cursor.execute(
                     "INSERT INTO meta (key, value) VALUES ('strata_version', ?)",
                     (_STRATA_VERSION,),

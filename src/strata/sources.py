@@ -9,15 +9,6 @@ import pydantic as pdt
 import strata.plugins.base as base
 
 
-class SourceConfig(base.BaseSourceConfig):
-    """Base class for source configurations.
-
-    Concrete implementations (DuckDBSourceConfig, LocalSourceConfig, etc.)
-    are defined in their respective plugin modules.
-    """
-    pass
-
-
 class BatchSource(pdt.BaseModel):
     """Batch data source for scheduled data pulls.
 
@@ -30,6 +21,7 @@ class BatchSource(pdt.BaseModel):
             timestamp_field="event_timestamp",
         )
     """
+
     name: str
     description: str | None = None
     config: base.BaseSourceConfig
@@ -50,6 +42,7 @@ class StreamSource(pdt.BaseModel):
             batch_fallback=DuckDBSourceConfig(path="./backfill.parquet"),
         )
     """
+
     name: str
     description: str | None = None
     config: base.BaseSourceConfig
@@ -70,6 +63,7 @@ class RealTimeSource(pdt.BaseModel):
             ttl=timedelta(hours=24),
         )
     """
+
     name: str
     description: str | None = None
     config: base.BaseSourceConfig

@@ -33,9 +33,19 @@ build-backend = "uv_build"
 
 [dependency-groups]
 check = [
+    "pytest-cov>=7.0.0",
     "pytest>=9.0.2",
     "ruff>=0.14.14",
     "ty>=0.0.14",
+    "pytest-mock>=3.15.1",
+    "pytest-xdist>=3.8.0",
+]
+commit = [
+    "commitizen>=4.13.0",
+    "prek>=0.3.1",
+]
+dev = [
+    "rust-just>=1.46.0",
 ]
 
 [tool.uv.workspace]

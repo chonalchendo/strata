@@ -217,9 +217,13 @@ if __name__ == "__main__":
     CITY = "Edinburgh"
     LATITUDE = 55.9533
     LONGITUDE = -3.1883
-    weather_df: pd.DataFrame = get_historical_weather(CITY, START, END, LATITUDE, LONGITUDE)
+    weather_df: pd.DataFrame = get_historical_weather(
+        CITY, START, END, LATITUDE, LONGITUDE
+    )
 
-    output_path = Path(__file__).parent.parent / "data" / "historical-weather-edinburgh.csv"
+    output_path = (
+        Path(__file__).parent.parent / "data" / "historical-weather-edinburgh.csv"
+    )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     weather_df.to_csv(output_path, index=False)
     print(f"Weather data written to {output_path}")

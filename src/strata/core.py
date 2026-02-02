@@ -39,6 +39,7 @@ class FeatureTable(StrataBaseModel):
             timestamp_field="event_timestamp",
         )
     """
+
     name: str
     description: str | None = None
     source: sources.SourceKind | SourceTable | "FeatureTable"
@@ -60,16 +61,13 @@ class FeatureTable(StrataBaseModel):
     )
 
     def model_post_init(self, __context) -> None:
-        """Initialize private attributes."""
-        # Ensure private attributes exist (Pydantic v2 PrivateAttr initialization)
-        if not hasattr(self, "_features"):
-            object.__setattr__(self, "_features", {})
-        if not hasattr(self, "_transforms"):
-            object.__setattr__(self, "_transforms", [])
-        if not hasattr(self, "_aggregates"):
-            object.__setattr__(self, "_aggregates", [])
-        if not hasattr(self, "_custom_features"):
-            object.__setattr__(self, "_custom_features", [])
+        """Initialize private attributes for Pydantic v2 compatibility."""
+        # PrivateAttr default_factory doesn't run until after __init__
+        # but __getattr__ intercepts _features access, so we must init explicitly
+        object.__setattr__(self, "_features", {})
+        object.__setattr__(self, "_transforms", [])
+        object.__setattr__(self, "_aggregates", [])
+        object.__setattr__(self, "_custom_features", [])
 
     def __getattr__(self, name: str) -> Feature:
         """Allow attribute-style access to features: table.feature_name"""
@@ -92,8 +90,6 @@ class FeatureTable(StrataBaseModel):
     @property
     def source_name(self) -> str:
         """Name of the source table or source."""
-        if isinstance(self.source, (FeatureTable, SourceTable)):
-            return self.source.name
         return self.source.name
 
     def features_list(self) -> list[Feature]:
@@ -125,6 +121,7 @@ class FeatureTable(StrataBaseModel):
         Returns:
             Decorator that returns a Feature reference
         """
+
         def decorator(func: Callable) -> Feature:
             # Store custom feature definition
             custom_def = {
@@ -142,6 +139,7 @@ class FeatureTable(StrataBaseModel):
             )
             self._features[name] = feature
             return feature
+
         return decorator
 
     def transform(self) -> Callable[[Callable], Callable]:
@@ -159,9 +157,11 @@ class FeatureTable(StrataBaseModel):
         Returns:
             Decorator that returns the original function
         """
+
         def decorator(func: Callable) -> Callable:
             self._transforms.append(func)
             return func
+
         return decorator
 
     def aggregate(
@@ -213,10 +213,6 @@ class FeatureTable(StrataBaseModel):
         )
         self._features[name] = feature
         return feature
-
-    def changes(self, start: str, end: str):
-        # WHAT DOES THIS RETURN? A Pyarrow table?
-        pass
 
 
 class Schema:
@@ -274,6 +270,7 @@ class SourceTable(StrataBaseModel):
         # Access features as attributes
         customer_features.lifetime_value  # Returns Feature
     """
+
     name: str
     description: str | None = None
     source: sources.SourceKind
@@ -288,10 +285,8 @@ class SourceTable(StrataBaseModel):
 
     def model_post_init(self, __context) -> None:
         """Build feature objects from schema."""
-        # Ensure _features dict exists (Pydantic v2 PrivateAttr initialization)
-        if not hasattr(self, "_features"):
-            object.__setattr__(self, "_features", {})
-
+        # Initialize _features before accessing (PrivateAttr + __getattr__ interaction)
+        object.__setattr__(self, "_features", {})
         if self.schema_ is not None:
             for name, field in self.schema_.fields():
                 self._features[name] = Feature(
@@ -305,15 +300,7 @@ class SourceTable(StrataBaseModel):
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
 
-        # Access _features using object.__getattribute__ to avoid recursion
-        try:
-            features = object.__getattribute__(self, "_features")
-        except AttributeError:
-            # _features not yet initialized
-            raise AttributeError(
-                f"SourceTable '{self.name}' is not fully initialized"
-            )
-
+        features = object.__getattribute__(self, "_features")
         if name in features:
             return features[name]
         raise AttributeError(
@@ -324,11 +311,6 @@ class SourceTable(StrataBaseModel):
     def features_list(self) -> list[Feature]:
         """Return all features defined in this table."""
         return list(self._features.values())
-
-
-class Column(StrataBaseModel):
-    name: str
-    dtype: str
 
 
 class Dataset(StrataBaseModel):
@@ -356,6 +338,7 @@ class Dataset(StrataBaseModel):
         fraud_detection.output_columns()
         # ['user_transactions__spend_90d', 'user_transactions__txn_count', ...]
     """
+
     name: str
     description: str | None = None
     features: list[Feature]
@@ -402,6 +385,7 @@ class Dataset(StrataBaseModel):
 
 class Feature(StrataBaseModel):
     """Reference to a feature within a table."""
+
     name: str
     table_name: str | None = None
     field: Field | None = None

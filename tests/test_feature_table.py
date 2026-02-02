@@ -42,7 +42,9 @@ class TestFeatureTable:
         )
         assert table.schedule == "hourly"
 
-    def test_creates_with_feature_table_source_dag(self, user_entity, transactions_source):
+    def test_creates_with_feature_table_source_dag(
+        self, user_entity, transactions_source
+    ):
         # Base table
         base_table = core.FeatureTable(
             name="filtered_transactions",

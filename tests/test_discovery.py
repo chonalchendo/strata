@@ -1,7 +1,6 @@
 """Tests for feature definition discovery and serialization."""
 
 from datetime import timedelta
-from pathlib import Path
 
 import pytest
 

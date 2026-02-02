@@ -24,5 +24,6 @@ class LocalSourceConfig(base.BaseSourceConfig):
             format="parquet",
         )
     """
+
     path: str
     format: Literal["parquet", "csv", "json", "delta"] = "parquet"

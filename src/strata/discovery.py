@@ -224,7 +224,6 @@ def _serialize_entity(entity: core.Entity) -> dict[str, Any]:
 
 def _serialize_feature_table(table: core.FeatureTable) -> dict[str, Any]:
     """Serialize FeatureTable to spec."""
-    import strata.sources as sources
 
     # Determine source reference
     source_ref = _get_source_reference(table.source)
