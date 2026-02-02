@@ -1,3 +1,3 @@
-from .storage import LocalStorage
+from .storage import LocalStorage, LocalSourceConfig
 
-__all__ = ["LocalStorage"]
+__all__ = ["LocalStorage", "LocalSourceConfig"]
