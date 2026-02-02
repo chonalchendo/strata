@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import TYPE_CHECKING, Callable
+from typing import Callable
 
 import pydantic as pdt
 
 import strata.errors as errors
 import strata.sources as sources
-
-if TYPE_CHECKING:
-    import strata.checks as checks
 
 
 class StrataBaseModel(pdt.BaseModel):
@@ -62,12 +59,26 @@ class FeatureTable(StrataBaseModel):
         arbitrary_types_allowed=True,
     )
 
+    def model_post_init(self, __context) -> None:
+        """Initialize private attributes."""
+        # Ensure private attributes exist (Pydantic v2 PrivateAttr initialization)
+        if not hasattr(self, "_features"):
+            object.__setattr__(self, "_features", {})
+        if not hasattr(self, "_transforms"):
+            object.__setattr__(self, "_transforms", [])
+        if not hasattr(self, "_aggregates"):
+            object.__setattr__(self, "_aggregates", [])
+        if not hasattr(self, "_custom_features"):
+            object.__setattr__(self, "_custom_features", [])
+
     def __getattr__(self, name: str) -> Feature:
         """Allow attribute-style access to features: table.feature_name"""
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-        if name in self._features:
-            return self._features[name]
+        # Use object.__getattribute__ to avoid recursion when accessing private attributes
+        features = object.__getattribute__(self, "_features")
+        if name in features:
+            return features[name]
         raise AttributeError(
             f"FeatureTable '{self.name}' has no feature '{name}'. "
             f"Define features using aggregate() or @feature decorator."
@@ -87,7 +98,7 @@ class FeatureTable(StrataBaseModel):
 
     def features_list(self) -> list[Feature]:
         """Return all features defined in this table."""
-        return list(self._features.values())
+        return list(object.__getattribute__(self, "_features").values())
 
     def transform(self) -> Callable:
         def decorator():
@@ -323,3 +334,11 @@ class Entity(StrataBaseModel):
                 fix="Provide at least one join key for the entity.",
             )
         return self
+
+
+# Import checks after Entity definition to avoid circular dependency
+import strata.checks as checks  # noqa: E402
+
+# Rebuild models to resolve forward references
+FeatureTable.model_rebuild()
+SourceTable.model_rebuild()
