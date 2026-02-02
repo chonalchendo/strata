@@ -6,39 +6,12 @@ Each environment in strata.yaml specifies which plugin to use for each role.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
+from typing import TYPE_CHECKING
 
 import pydantic as pdt
 
-
-@dataclass
-class RegistryState:
-    """In-memory state representation."""
-
-    version: int  # Monotonic version number
-    created_by: str  # user@hostname
-    created_at: datetime
-
-
-@dataclass
-class SnapshotMeta:
-    """State versioning metadata."""
-
-    lineage: str  # UUID linking related states
-    serial: int  # Monotonic version number
-    created_by: str  # user@hostname
-    created_at: datetime
-
-
-@dataclass
-class LockInfo:
-    """Lock metadata for diagnostics."""
-
-    id: str  # UUID for this lock
-    operation: str  # plan, apply, destroy
-    who: str  # user@hostname
-    created: datetime
+if TYPE_CHECKING:
+    import strata.registry as registry
 
 
 class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
@@ -52,29 +25,88 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     development across phases.
     """
 
-    def state(self) -> RegistryState:
-        """Return current in-memory state (deep copy)."""
-        raise NotImplementedError("Registry.state() not implemented")
+    def initialize(self) -> None:
+        """Create tables if they don't exist.
 
-    def write_state(self, state: RegistryState) -> None:
-        """Update in-memory state (no persistence)."""
-        raise NotImplementedError("Registry.write_state() not implemented")
+        Must be called before any other operations. Idempotent.
+        """
+        raise NotImplementedError("Registry.initialize() not implemented")
 
-    def refresh_state(self) -> None:
-        """Load state from persistent storage."""
-        raise NotImplementedError("Registry.refresh_state() not implemented")
+    def get_object(self, kind: str, name: str) -> "registry.ObjectRecord | None":
+        """Fetch a single object by kind and name.
 
-    def persist_state(self) -> SnapshotMeta:
-        """Write state to persistent storage, return new version."""
-        raise NotImplementedError("Registry.persist_state() not implemented")
+        Args:
+            kind: Object type ("entity", "feature_table", "dataset", "source_table").
+            name: Unique name within the kind.
 
-    def lock(self, info: LockInfo) -> str:
-        """Acquire lock, return lock ID."""
-        raise NotImplementedError("Registry.lock() not implemented")
+        Returns:
+            ObjectRecord if found, None otherwise.
+        """
+        raise NotImplementedError("Registry.get_object() not implemented")
 
-    def unlock(self, lock_id: str) -> None:
-        """Release lock."""
-        raise NotImplementedError("Registry.unlock() not implemented")
+    def list_objects(self, kind: str | None = None) -> "list[registry.ObjectRecord]":
+        """List all objects, optionally filtered by kind.
+
+        Args:
+            kind: If provided, filter to only this object type.
+
+        Returns:
+            List of ObjectRecord instances.
+        """
+        raise NotImplementedError("Registry.list_objects() not implemented")
+
+    def put_object(self, obj: "registry.ObjectRecord", applied_by: str) -> None:
+        """Upsert an object and log the change.
+
+        If object exists (same kind/name), increments version and logs "update".
+        If object is new, sets version=1 and logs "create".
+
+        Args:
+            obj: The object record to store.
+            applied_by: Identity string (user@hostname) for changelog.
+        """
+        raise NotImplementedError("Registry.put_object() not implemented")
+
+    def delete_object(self, kind: str, name: str, applied_by: str) -> None:
+        """Delete an object and log the change.
+
+        Args:
+            kind: Object type.
+            name: Object name.
+            applied_by: Identity string (user@hostname) for changelog.
+        """
+        raise NotImplementedError("Registry.delete_object() not implemented")
+
+    def get_meta(self, key: str) -> str | None:
+        """Get a metadata value.
+
+        Args:
+            key: Metadata key.
+
+        Returns:
+            Value if found, None otherwise.
+        """
+        raise NotImplementedError("Registry.get_meta() not implemented")
+
+    def set_meta(self, key: str, value: str) -> None:
+        """Set a metadata value.
+
+        Args:
+            key: Metadata key.
+            value: Metadata value.
+        """
+        raise NotImplementedError("Registry.set_meta() not implemented")
+
+    def get_changelog(self, limit: int = 100) -> "list[registry.ChangelogEntry]":
+        """Get recent changelog entries.
+
+        Args:
+            limit: Maximum number of entries to return.
+
+        Returns:
+            List of ChangelogEntry instances, newest first.
+        """
+        raise NotImplementedError("Registry.get_changelog() not implemented")
 
 
 class BaseStorage(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
@@ -101,4 +133,5 @@ class BaseSourceConfig(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     Source configs define how to connect to a data source.
     Each backend (DuckDB, S3, Unity Catalog) provides its own config class.
     """
+
     pass
