@@ -332,19 +332,72 @@ class Column(StrataBaseModel):
 
 
 class Dataset(StrataBaseModel):
+    """Collection of features for ML training and inference.
+
+    Dataset groups features from multiple FeatureTables and SourceTables.
+
+    Feature naming (controlled by prefix_features):
+    - True (default): table__feature (sklearn convention)
+    - False: feature (short names, user manages collisions)
+    - .alias() always wins regardless of prefix_features
+
+    Example:
+        fraud_detection = Dataset(
+            name="fraud_detection",
+            features=[
+                user_transactions.spend_90d,
+                user_transactions.txn_count,
+                customer_features.lifetime_value,
+            ],
+            description="Features for fraud detection model",
+        )
+
+        # Get output column names
+        fraud_detection.output_columns()
+        # ['user_transactions__spend_90d', 'user_transactions__txn_count', ...]
+    """
     name: str
-    description: str
+    description: str | None = None
     features: list[Feature]
+    prefix_features: bool = True
+    owner: str | None = None
+    tags: dict[str, str] | None = None
 
-    def get_offline_features():
-        ## Does this return an arrow table that can be converted
-        # to any format e.g. spark pandas or polars?
-        pass
+    def output_columns(self) -> list[str]:
+        """Return the column names that will appear in output data.
 
-    def get_online_vector():
-        ## I think this is return as an arrow table and then
-        # output as json?
-        pass
+        Respects prefix_features setting and individual aliases.
+        """
+        columns = []
+        for feature in self.features:
+            if feature._alias:
+                # Alias always wins
+                columns.append(feature._alias)
+            elif self.prefix_features:
+                # Default: table__feature
+                columns.append(feature.output_name)
+            else:
+                # Short name: just feature name
+                columns.append(feature.name)
+        return columns
+
+    def tables_referenced(self) -> set[str]:
+        """Return unique table names referenced by features."""
+        return {f.table_name for f in self.features if f.table_name}
+
+    @pdt.model_validator(mode="after")
+    def validate_no_duplicate_columns(self) -> "Dataset":
+        """Ensure no duplicate output column names."""
+        columns = self.output_columns()
+        seen = set()
+        for col in columns:
+            if col in seen:
+                raise ValueError(
+                    f"Duplicate output column name: '{col}'. "
+                    f"Use .alias() to disambiguate or enable prefix_features."
+                )
+            seen.add(col)
+        return self
 
 
 class Feature(StrataBaseModel):
