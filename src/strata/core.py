@@ -183,6 +183,10 @@ class SourceTable(StrataBaseModel):
 
     def model_post_init(self, __context) -> None:
         """Build feature objects from schema."""
+        # Ensure _features dict exists (Pydantic v2 PrivateAttr initialization)
+        if not hasattr(self, "_features"):
+            object.__setattr__(self, "_features", {})
+
         if self.schema_ is not None:
             for name, field in self.schema_.fields():
                 self._features[name] = Feature(
@@ -195,11 +199,21 @@ class SourceTable(StrataBaseModel):
         """Allow attribute-style access to features: table.feature_name"""
         if name.startswith("_"):
             raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
-        if name in self._features:
-            return self._features[name]
+
+        # Access _features using object.__getattribute__ to avoid recursion
+        try:
+            features = object.__getattribute__(self, "_features")
+        except AttributeError:
+            # _features not yet initialized
+            raise AttributeError(
+                f"SourceTable '{self.name}' is not fully initialized"
+            )
+
+        if name in features:
+            return features[name]
         raise AttributeError(
             f"SourceTable '{self.name}' has no feature '{name}'. "
-            f"Available features: {list(self._features.keys())}"
+            f"Available features: {list(features.keys())}"
         )
 
     def features_list(self) -> list[Feature]:
