@@ -1,39 +1,80 @@
+"""Source definitions for Strata feature stores."""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
 import pydantic as pdt
 
+import strata.plugins.base as base
 
-class BaseSource(pdt.BaseModel):
+
+class SourceConfig(base.BaseSourceConfig):
+    """Base class for source configurations.
+
+    Concrete implementations (DuckDBSourceConfig, LocalSourceConfig, etc.)
+    are defined in their respective plugin modules.
+    """
     pass
 
 
-class SourceConfig(pdt.BaseModel):
-    pass
+class BatchSource(pdt.BaseModel):
+    """Batch data source for scheduled data pulls.
 
+    Example:
+        from strata.plugins.duckdb import DuckDBSourceConfig
 
-class LocalConfig(SourceConfig):
-    path: str
-    format: str
-
-
-class BatchSource(BaseSource):
+        transactions = BatchSource(
+            name="transactions",
+            config=DuckDBSourceConfig(path="./data/transactions.parquet"),
+            timestamp_field="event_timestamp",
+        )
+    """
     name: str
-    description: str
-    config: SourceConfig
+    description: str | None = None
+    config: base.BaseSourceConfig
     timestamp_field: str
 
 
-class StreamSource(BaseSource):
+class StreamSource(pdt.BaseModel):
+    """Streaming data source for continuous data flow.
+
+    Provides batch_fallback for backfill operations when streaming
+    data is not available for historical periods.
+
+    Example:
+        transactions_stream = StreamSource(
+            name="transactions_stream",
+            config=KafkaSourceConfig(...),
+            timestamp_field="event_timestamp",
+            batch_fallback=DuckDBSourceConfig(path="./backfill.parquet"),
+        )
+    """
     name: str
-    description: str
-    config: SourceConfig
+    description: str | None = None
+    config: base.BaseSourceConfig
     timestamp_field: str
-    batch_output: SourceConfig
+    batch_fallback: base.BaseSourceConfig | None = None
 
 
-class RealTimeSource(BaseSource):
+class RealTimeSource(pdt.BaseModel):
+    """Real-time source for on-demand feature serving.
+
+    Data has a TTL after which it expires.
+
+    Example:
+        user_session = RealTimeSource(
+            name="user_session",
+            config=...,
+            timestamp_field="last_active",
+            ttl=timedelta(hours=24),
+        )
+    """
     name: str
-    description: str
-    config: SourceConfig
+    description: str | None = None
+    config: base.BaseSourceConfig
     timestamp_field: str
+    ttl: timedelta | None = None
 
 
 SourceKind = BatchSource | StreamSource | RealTimeSource
