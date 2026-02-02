@@ -46,15 +46,33 @@ class FeatureTable(StrataBaseModel):
         pass
 
 
-class Schema(StrataBaseModel):
-    """User provides a for SourceTable class
+class Schema:
+    """Schema definition using Field for column specifications.
 
-    class UsersDimSchema(Schema):
-        user_id: Field = Field("user_id", unique=True)
-        name: Field = Field("name")
+    Users subclass Schema and define fields as class attributes:
+
+    Example:
+        class UserSchema(Schema):
+            user_id = Field(dtype="string", not_null=True, unique=True)
+            email = Field(dtype="string")
+            created_at = Field(dtype="datetime", not_null=True)
     """
 
-    pass
+    @classmethod
+    def fields(cls) -> list[tuple[str, Field]]:
+        """Return all Field definitions as (name, field) tuples."""
+        result = []
+        for name in dir(cls):
+            if not name.startswith("_"):
+                value = getattr(cls, name)
+                if isinstance(value, Field):
+                    result.append((name, value))
+        return result
+
+    @classmethod
+    def field_names(cls) -> list[str]:
+        """Return names of all fields in schema."""
+        return [name for name, _ in cls.fields()]
 
 
 class SourceTable(StrataBaseModel):
