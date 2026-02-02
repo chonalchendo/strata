@@ -1,0 +1,6 @@
+# Ignore all by default
+*
+# But track codebase documentation
+!.gitignore
+!codebase/
+!codebase/*.md
