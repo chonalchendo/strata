@@ -3,6 +3,7 @@ from typing import Callable
 
 import pydantic as pdt
 
+import strata.errors as errors
 import strata.sources as sources
 
 
@@ -127,5 +128,15 @@ class Field(StrataBaseModel):
 
 class Entity(StrataBaseModel):
     name: str
-    description: str
+    description: str | None = None
     join_keys: list[str]
+
+    @pdt.model_validator(mode="after")
+    def validate_join_keys(self) -> "Entity":
+        if not self.join_keys:
+            raise errors.StrataError(
+                context=f"Validating entity '{self.name}'",
+                cause="join_keys cannot be empty",
+                fix="Provide at least one join key for the entity.",
+            )
+        return self
