@@ -1,0 +1,53 @@
+name: air-quality-project
+default_env: dev
+
+# Valid schedule tags for this project
+schedules:
+  - hourly
+  - daily
+
+# Project paths (relative to strata.yaml)
+paths:
+  tables: tables/
+  datasets: datasets/
+  entities: entities/
+
+environments:
+  dev:
+    catalog: air_quality_dev
+    registry:
+      kind: sqlite
+      path: .strata/dev/registry.db
+    storage:
+      kind: local
+      path: .strata/dev/lakehouse
+      catalog: air_quality_dev
+    compute:
+      kind: duckdb
+      extensions: [parquet, json]
+
+  stg:
+    catalog: air_quality_stg
+    registry:
+      kind: sqlite
+      path: .strata/stg/registry.db
+    storage:
+      kind: local
+      path: .strata/stg/lakehouse
+      catalog: air_quality_stg
+    compute:
+      kind: duckdb
+      extensions: [parquet, json]
+
+  prd:
+    catalog: air_quality_prd
+    registry:
+      kind: sqlite
+      path: .strata/prd/registry.db
+    storage:
+      kind: local
+      path: .strata/prd/lakehouse
+      catalog: air_quality_prd
+    compute:
+      kind: duckdb
+      extensions: [parquet, json]

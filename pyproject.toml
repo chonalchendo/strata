@@ -1,0 +1,42 @@
+[project]
+name = "strata"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "chonalchendo", email = "110059232+chonalchendo@users.noreply.github.com" }
+]
+requires-python = ">=3.14.0"
+dependencies = [
+    "cyclopts>=4.5.1",
+    "deltalake>=1.4.1",
+    "loguru>=0.7.3",
+    "pyarrow>=23.0.0",
+    "pydantic-settings>=2.12.0",
+    "pydantic>=2.12.5",
+    "rich>=14.3.1",
+    "omegaconf>=2.3.0",
+]
+
+[project.scripts]
+strata = "strata.cli:app"
+
+[project.optional-dependencies]
+duckdb = [
+    "duckdb>=1.4.4",
+    "ibis-framework[duckdb]>=11.0.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.8.8,<0.9.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+check = [
+    "pytest>=9.0.2",
+    "ruff>=0.14.14",
+    "ty>=0.0.14",
+]
+
+[tool.uv.workspace]
+members = ["examples/air-quality"]
