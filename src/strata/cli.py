@@ -308,24 +308,16 @@ def up(
 
             output.render_apply_progress(change)
 
-            if change.operation == diff.ChangeOperation.CREATE:
+            if change.operation in (
+                diff.ChangeOperation.CREATE,
+                diff.ChangeOperation.UPDATE,
+            ):
                 obj = reg_types.ObjectRecord(
                     kind=change.kind,
                     name=change.name,
                     spec_hash=change.new_hash,
                     spec_json=change.spec_json,
-                    version=1,  # Will be set by put_object
-                )
-                reg.put_object(obj, applied_by=applied_by)
-                applied_count += 1
-
-            elif change.operation == diff.ChangeOperation.UPDATE:
-                obj = reg_types.ObjectRecord(
-                    kind=change.kind,
-                    name=change.name,
-                    spec_hash=change.new_hash,
-                    spec_json=change.spec_json,
-                    version=1,  # Will be incremented by put_object
+                    version=1,  # Registry handles versioning
                 )
                 reg.put_object(obj, applied_by=applied_by)
                 applied_count += 1

@@ -6,8 +6,6 @@ versioning and change tracking using SQLite.
 
 from __future__ import annotations
 
-import getpass
-import platform
 import sqlite3
 import uuid
 from datetime import datetime, timezone
@@ -36,12 +34,6 @@ class SqliteRegistry(base.BaseRegistry):
     def _connect(self) -> sqlite3.Connection:
         """Create a database connection."""
         return sqlite3.connect(self.path)
-
-    def _get_applied_by(self) -> str:
-        """Get identity string for changelog entries."""
-        user = getpass.getuser()
-        host = platform.node()
-        return f"{user}@{host}"
 
     def initialize(self) -> None:
         """Create tables if they don't exist.
