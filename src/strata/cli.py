@@ -417,6 +417,20 @@ def compile(
         feature_tables = [d for d in discovered if d.kind == "feature_table"]
 
         if table:
+            # Check if it's a source_table (which can't be compiled)
+            source_tables = [d for d in discovered if d.kind == "source_table"]
+            for st in source_tables:
+                if st.name == table:
+                    console.print(f"[red]Error:[/red] '{table}' is a SourceTable")
+                    console.print()
+                    console.print(
+                        "[dim]Hint: Only FeatureTable definitions can be compiled."
+                    )
+                    console.print(
+                        "SourceTables define raw data sources and don't have computed features.[/dim]"
+                    )
+                    raise SystemExit(1)
+
             # Filter to specific table
             feature_tables = [d for d in feature_tables if d.name == table]
             if not feature_tables:
