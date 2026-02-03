@@ -477,8 +477,204 @@ def compile(
         raise SystemExit(1)
 
 
+VALID_KINDS = ("entity", "feature_table", "source_table", "dataset")
+
+
 @app.command
-def down():
-    """Destroy project infrastructure."""
-    # TODO: Implement teardown
-    console.print("[yellow]Not implemented yet[/yellow]")
+def down(
+    kind: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            help="Kind of object to remove (entity, feature_table, source_table, dataset)"
+        ),
+    ] = None,
+    name: Annotated[
+        str | None,
+        cyclopts.Parameter(help="Name of specific object to remove"),
+    ] = None,
+    yes: Annotated[
+        bool,
+        cyclopts.Parameter(name="--yes", help="Skip confirmation prompt"),
+    ] = False,
+    env_name: Annotated[
+        str | None,
+        cyclopts.Parameter(name="--env", help="Environment to remove from"),
+    ] = None,
+):
+    """Remove definitions from registry.
+
+    With no arguments, removes all definitions (like terraform destroy).
+    With kind and name, removes a specific object (like terraform state rm).
+
+    Examples:
+        strata down                    # Remove all definitions
+        strata down entity user        # Remove specific entity
+        strata down --yes              # Remove all without confirmation
+    """
+    try:
+        strata_settings = settings.load_strata_settings(env=env_name)
+
+        # Validate arguments: either both kind+name or neither
+        if (kind is None) != (name is None):
+            console.print(
+                "[red]Error:[/red] Must provide both kind and name, or neither"
+            )
+            console.print(
+                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
+            )
+            raise SystemExit(1)
+
+        # Validate kind if provided
+        if kind is not None and kind not in VALID_KINDS:
+            console.print(f"[red]Error:[/red] Invalid kind '{kind}'")
+            console.print(
+                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
+            )
+            raise SystemExit(1)
+
+        # Get registry and initialize
+        reg = _get_registry(strata_settings)
+        reg.initialize()
+
+        if kind is not None and name is not None:
+            # Remove specific object
+            existing = reg.get_object(kind, name)
+            if existing is None:
+                console.print(
+                    f"[yellow]Object not found:[/yellow] {kind} '{name}'"
+                )
+                return
+
+            console.print(f"[bold]Removing {kind} '{name}'[/bold]")
+
+            if not yes:
+                confirm = console.input(
+                    "[yellow]Are you sure? (y/N):[/yellow] "
+                )
+                if confirm.lower() != "y":
+                    console.print("[dim]Cancelled[/dim]")
+                    return
+
+            reg.delete_object(kind, name, applied_by=_get_applied_by())
+            console.print(f"[green]✓[/green] Removed {kind} '{name}'")
+
+        else:
+            # Remove all objects
+            objects = reg.list_objects()
+
+            if not objects:
+                console.print("[dim]No objects registered[/dim]")
+                return
+
+            console.print(f"[bold]Removing all definitions ({len(objects)} objects)[/bold]")
+            console.print()
+
+            # Show what will be deleted
+            from rich.table import Table
+
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Kind")
+            table.add_column("Name")
+
+            for obj in objects:
+                table.add_row(obj.kind, obj.name)
+
+            console.print(table)
+            console.print()
+
+            if not yes:
+                confirm = console.input(
+                    "[yellow]Are you sure you want to remove all objects? (y/N):[/yellow] "
+                )
+                if confirm.lower() != "y":
+                    console.print("[dim]Cancelled[/dim]")
+                    return
+
+            # Delete all objects
+            applied_by = _get_applied_by()
+            for obj in objects:
+                reg.delete_object(obj.kind, obj.name, applied_by=applied_by)
+                console.print(f"[red]-[/red] {obj.kind} '{obj.name}'")
+
+            console.print()
+            console.print(
+                f"[bold green]✓ Removed {len(objects)} object(s)[/bold green]"
+            )
+
+    except errors.StrataError as e:
+        _handle_error(e)
+        raise SystemExit(1)
+
+
+@app.command
+def ls(
+    kind: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            help="Filter by kind (entity, feature_table, source_table, dataset)"
+        ),
+    ] = None,
+    env_name: Annotated[
+        str | None,
+        cyclopts.Parameter(name="--env", help="Environment to list from"),
+    ] = None,
+):
+    """List registered objects.
+
+    Shows all objects in the registry with version and content hash.
+    Optionally filter by kind.
+
+    Examples:
+        strata ls                    # List all objects
+        strata ls entity             # List only entities
+        strata ls feature_table      # List only feature tables
+    """
+    try:
+        strata_settings = settings.load_strata_settings(env=env_name)
+
+        # Validate kind if provided
+        if kind is not None and kind not in VALID_KINDS:
+            console.print(f"[red]Error:[/red] Invalid kind '{kind}'")
+            console.print(
+                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
+            )
+            raise SystemExit(1)
+
+        # Get registry and initialize
+        reg = _get_registry(strata_settings)
+        reg.initialize()
+
+        # List objects
+        objects = reg.list_objects(kind=kind)
+
+        if not objects:
+            if kind:
+                console.print(f"[dim]No {kind} objects registered[/dim]")
+            else:
+                console.print("[dim]No objects registered[/dim]")
+            return
+
+        # Display as Rich table
+        from rich.table import Table
+
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Kind")
+        table.add_column("Name")
+        table.add_column("Version")
+        table.add_column("Hash")
+
+        for obj in objects:
+            table.add_row(
+                obj.kind,
+                obj.name,
+                str(obj.version),
+                obj.spec_hash[:8],
+            )
+
+        console.print(table)
+        console.print()
+        console.print(f"[dim]Total: {len(objects)} object(s)[/dim]")
+
+    except errors.StrataError as e:
+        _handle_error(e)
+        raise SystemExit(1)
