@@ -1,5 +1,5 @@
 import strata as st
-from strata.sources import LocalConfig
+import strata.plugins.local.storage as local_storage
 
 # historical_url = (
 #     "https://aqicn.org/historical/#city:united-kingdom/edinburgh-st-leonards"
@@ -19,7 +19,9 @@ street = st.Entity(
 air_quality_source = st.BatchSource(
     name="Edinburgh air quality",
     description="Historical air quality data for Edinburgh",
-    config=LocalConfig(path="data/air-quality-edinburgh.csv", format="csv"),
+    config=local_storage.LocalSourceConfig(
+        path="data/air-quality-edinburgh.csv", format="csv"
+    ),
     timestamp_field="date",
 )
 

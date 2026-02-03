@@ -1,5 +1,5 @@
 import strata as st
-from strata.sources import LocalConfig
+import strata.plugins.local.storage as local_storage
 
 city = st.Entity(
     name="City", description="City to get weather data for.", join_keys=["city"]
@@ -9,7 +9,9 @@ city = st.Entity(
 weather_source = st.BatchSource(
     name="Weather source",
     description="Source of weather data.",
-    config=LocalConfig(path="data/historical-weather-edinburgh.csv", format="csv"),
+    config=local_storage.LocalSourceConfig(
+        path="data/historical-weather-edinburgh.csv", format="csv"
+    ),
     timestamp_field="date",
 )
 
