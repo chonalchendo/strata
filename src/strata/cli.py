@@ -424,9 +424,7 @@ def compile(
                     console.print(f"[red]Error:[/red] '{table}' is a SourceTable")
                     console.print()
                     console.print(
-                        "[dim]Hint: Only FeatureTable definitions can be compiled."
-                    )
-                    console.print(
+                        "[dim]Hint: Only FeatureTable definitions can be compiled. "
                         "SourceTables define raw data sources and don't have computed features.[/dim]"
                     )
                     raise SystemExit(1)
