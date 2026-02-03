@@ -19,9 +19,7 @@ street = st.Entity(
 air_quality_source = st.BatchSource(
     name="Edinburgh air quality",
     description="Historical air quality data for Edinburgh",
-    config=local_storage.LocalSourceConfig(
-        path="data/air-quality-edinburgh.csv", format="csv"
-    ),
+    config=st.LocalSourceConfig(path="data/air-quality-edinburgh.csv", format="csv"),
     timestamp_field="date",
 )
 

@@ -1,5 +1,6 @@
-from .core import FeatureTable, Feature, Dataset, Entity, Schema, Field, SourceTable
-from .sources import BatchSource, StreamSource, RealTimeSource
+from .core import Dataset, Entity, Feature, FeatureTable, Field, Schema, SourceTable
+from .plugins.local import LocalSourceConfig
+from .sources import BatchSource, RealTimeSource, StreamSource
 
 __all__ = [
     # core
@@ -14,4 +15,6 @@ __all__ = [
     "BatchSource",
     "StreamSource",
     "RealTimeSource",
+    # configs
+    "LocalSourceConfig",
 ]

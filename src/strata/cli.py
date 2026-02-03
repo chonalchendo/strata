@@ -20,6 +20,7 @@ import strata.diff as diff
 import strata.discovery as discovery
 import strata.errors as errors
 import strata.output as output
+import strata.plugins as plugins
 import strata.registry as reg_types
 import strata.settings as settings
 import strata.validation as validation
@@ -43,7 +44,7 @@ def _handle_error(e: errors.StrataError) -> None:
     console.print(f"[green]Fix:[/green] {e.fix}")
 
 
-def _get_registry(strata_settings: settings.StrataSettings):
+def _get_registry(strata_settings: settings.StrataSettings) -> plugins.RegistryKind:
     """Get registry backend for current environment."""
     return strata_settings.active_environment.registry
 
@@ -531,17 +532,13 @@ def down(
             console.print(
                 "[red]Error:[/red] Must provide both kind and name, or neither"
             )
-            console.print(
-                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
-            )
+            console.print(f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]")
             raise SystemExit(1)
 
         # Validate kind if provided
         if kind is not None and kind not in VALID_KINDS:
             console.print(f"[red]Error:[/red] Invalid kind '{kind}'")
-            console.print(
-                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
-            )
+            console.print(f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]")
             raise SystemExit(1)
 
         # Get registry and initialize
@@ -552,17 +549,13 @@ def down(
             # Remove specific object
             existing = reg.get_object(kind, name)
             if existing is None:
-                console.print(
-                    f"[yellow]Object not found:[/yellow] {kind} '{name}'"
-                )
+                console.print(f"[yellow]Object not found:[/yellow] {kind} '{name}'")
                 return
 
             console.print(f"[bold]Removing {kind} '{name}'[/bold]")
 
             if not yes:
-                confirm = console.input(
-                    "[yellow]Are you sure? (y/N):[/yellow] "
-                )
+                confirm = console.input("[yellow]Are you sure? (y/N):[/yellow] ")
                 if confirm.lower() != "y":
                     console.print("[dim]Cancelled[/dim]")
                     return
@@ -578,7 +571,9 @@ def down(
                 console.print("[dim]No objects registered[/dim]")
                 return
 
-            console.print(f"[bold]Removing all definitions ({len(objects)} objects)[/bold]")
+            console.print(
+                f"[bold]Removing all definitions ({len(objects)} objects)[/bold]"
+            )
             console.print()
 
             # Show what will be deleted
@@ -647,9 +642,7 @@ def ls(
         # Validate kind if provided
         if kind is not None and kind not in VALID_KINDS:
             console.print(f"[red]Error:[/red] Invalid kind '{kind}'")
-            console.print(
-                f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]"
-            )
+            console.print(f"[dim]Valid kinds: {', '.join(VALID_KINDS)}[/dim]")
             raise SystemExit(1)
 
         # Get registry and initialize
