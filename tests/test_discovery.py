@@ -205,3 +205,434 @@ public = core.Entity(name="public", join_keys=["id"])
         # Should only find public entity
         assert len(discovered) == 1
         assert discovered[0].name == "public"
+
+
+class TestSmartDiscovery:
+    """Test smart discovery with include/exclude patterns."""
+
+    def test_discovers_from_any_location(self, tmp_path, monkeypatch):
+        """Smart discovery finds entities anywhere in the project."""
+        # Create entities in non-standard locations
+        (tmp_path / "src" / "models").mkdir(parents=True)
+        (tmp_path / "src" / "models" / "user.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        (tmp_path / "lib" / "features").mkdir(parents=True)
+        (tmp_path / "lib" / "features" / "merchant.py").write_text(
+            """
+import strata.core as core
+merchant = core.Entity(name="merchant", join_keys=["merchant_id"])
+"""
+        )
+
+        # Create config without paths (uses smart discovery)
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "merchant" in names
+
+    def test_excludes_test_files(self, tmp_path, monkeypatch):
+        """Smart discovery excludes test_*.py and *_test.py files."""
+        # Create regular file
+        (tmp_path / "models.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        # Create test files that should be excluded
+        (tmp_path / "test_models.py").write_text(
+            """
+import strata.core as core
+test_entity = core.Entity(name="test_entity", join_keys=["id"])
+"""
+        )
+        (tmp_path / "models_test.py").write_text(
+            """
+import strata.core as core
+another_test = core.Entity(name="another_test", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "test_entity" not in names
+        assert "another_test" not in names
+
+    def test_excludes_conftest(self, tmp_path, monkeypatch):
+        """Smart discovery excludes conftest.py files."""
+        # Create regular file
+        (tmp_path / "models.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        # Create conftest.py that should be excluded
+        (tmp_path / "conftest.py").write_text(
+            """
+import strata.core as core
+fixture_entity = core.Entity(name="fixture_entity", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "fixture_entity" not in names
+
+    def test_excludes_tests_directory(self, tmp_path, monkeypatch):
+        """Smart discovery excludes **/tests/** directories."""
+        # Create regular file
+        (tmp_path / "src" / "models.py").parent.mkdir(parents=True)
+        (tmp_path / "src" / "models.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        # Create file in tests directory that should be excluded
+        (tmp_path / "tests").mkdir()
+        (tmp_path / "tests" / "fixtures.py").write_text(
+            """
+import strata.core as core
+test_fixture = core.Entity(name="test_fixture", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "test_fixture" not in names
+
+    def test_excludes_venv_directory(self, tmp_path, monkeypatch):
+        """Smart discovery excludes venv directories."""
+        # Create regular file
+        (tmp_path / "models.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        # Create file in venv that should be excluded
+        (tmp_path / "venv" / "lib").mkdir(parents=True)
+        (tmp_path / "venv" / "lib" / "something.py").write_text(
+            """
+import strata.core as core
+venv_entity = core.Entity(name="venv_entity", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "venv_entity" not in names
+
+    def test_custom_exclude_patterns(self, tmp_path, monkeypatch):
+        """Custom exclude patterns work."""
+        # Create files
+        (tmp_path / "models.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        (tmp_path / "scratch").mkdir()
+        (tmp_path / "scratch" / "experiment.py").write_text(
+            """
+import strata.core as core
+scratch_entity = core.Entity(name="scratch_entity", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+paths:
+  exclude:
+    - "**/scratch/**"
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "scratch_entity" not in names
+
+    def test_include_restricts_search(self, tmp_path, monkeypatch):
+        """Include patterns restrict search to specific directories."""
+        # Create files in different locations
+        (tmp_path / "src" / "features").mkdir(parents=True)
+        (tmp_path / "src" / "features" / "user.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        (tmp_path / "other" / "models.py").parent.mkdir(parents=True)
+        (tmp_path / "other" / "models.py").write_text(
+            """
+import strata.core as core
+other_entity = core.Entity(name="other_entity", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+paths:
+  include:
+    - src/features/
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        assert "user" in names
+        assert "other_entity" not in names
+
+    def test_legacy_mode_still_works(self, tmp_path, monkeypatch):
+        """Legacy paths configuration still works."""
+        # Create files in legacy structure
+        (tmp_path / "entities").mkdir()
+        (tmp_path / "entities" / "user.py").write_text(
+            """
+import strata.core as core
+user = core.Entity(name="user", join_keys=["user_id"])
+"""
+        )
+        (tmp_path / "tables").mkdir()
+        (tmp_path / "tables" / "features.py").write_text(
+            """
+import strata.core as core
+import strata.sources as sources
+from strata.plugins.local.storage import LocalSourceConfig
+
+user = core.Entity(name="user", join_keys=["user_id"])
+batch = sources.BatchSource(
+    name="data",
+    config=LocalSourceConfig(path="./data.parquet"),
+    timestamp_field="ts",
+)
+table = core.FeatureTable(
+    name="user_features",
+    source=batch,
+    entity=user,
+    timestamp_field="ts",
+)
+"""
+        )
+        # Create file outside legacy paths (should not be discovered)
+        (tmp_path / "other.py").write_text(
+            """
+import strata.core as core
+other = core.Entity(name="other", join_keys=["id"])
+"""
+        )
+
+        config = tmp_path / "strata.yaml"
+        config.write_text(
+            """
+name: test
+default_env: dev
+paths:
+  tables: tables/
+  datasets: datasets/
+  entities: entities/
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: features
+    compute:
+      kind: duckdb
+"""
+        )
+        monkeypatch.chdir(tmp_path)
+        import strata.settings as settings_mod
+
+        strata_settings = settings_mod.load_strata_settings()
+
+        # Verify legacy settings type
+        assert isinstance(strata_settings.paths, settings_mod.LegacyPathsSettings)
+
+        discoverer = discovery.DefinitionDiscoverer(strata_settings)
+        result = discoverer.discover_all()
+
+        names = {obj.name for obj in result}
+        # User from entities/ and from tables/
+        assert "user" in names
+        assert "user_features" in names
+        # Other should NOT be found (outside legacy paths)
+        assert "other" not in names

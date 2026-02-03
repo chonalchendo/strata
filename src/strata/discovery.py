@@ -9,6 +9,7 @@ changing consumer code. Current implementation has NO caching - measure first.
 
 from __future__ import annotations
 
+import fnmatch
 import importlib.util
 import json
 import sys
@@ -69,15 +70,25 @@ class DefinitionDiscoverer:
     def discover_all(self) -> list[DiscoveredObject]:
         """Discover all feature definitions in the project.
 
-        Scans Python files in configured paths (tables/, datasets/, entities/).
-        Returns list of discovered objects.
+        Uses smart discovery (scanning all Python files with exclusion patterns)
+        or legacy discovery (scanning specific directories) depending on config.
         """
-        discovered: list[DiscoveredObject] = []
-
         if self._settings is None:
-            return discovered
+            return []
 
         paths = self._settings.paths
+        if isinstance(paths, settings.SmartPathsSettings):
+            return self._discover_smart(paths)
+        return self._discover_legacy(paths)
+
+    def _discover_legacy(
+        self, paths: settings.LegacyPathsSettings
+    ) -> list[DiscoveredObject]:
+        """Legacy discovery: scan specific directories (tables/, datasets/, entities/).
+
+        Maintained for backward compatibility with existing configurations.
+        """
+        discovered: list[DiscoveredObject] = []
 
         # Scan each configured path
         for _path_name, rel_path in [
@@ -90,6 +101,81 @@ class DefinitionDiscoverer:
                 discovered.extend(self._scan_directory(full_path))
 
         return discovered
+
+    def _discover_smart(
+        self, paths: settings.SmartPathsSettings
+    ) -> list[DiscoveredObject]:
+        """Smart discovery: scan all Python files with intelligent exclusions.
+
+        Scans all .py files, uses isinstance() to find SDK objects, and
+        applies default + custom exclusion patterns to skip test files,
+        virtual environments, etc.
+        """
+        discovered: list[DiscoveredObject] = []
+
+        # Combine default exclusions with custom excludes
+        exclude_patterns = list(paths.DEFAULT_EXCLUDES) + list(paths.exclude)
+
+        # Determine scan roots
+        if paths.include:
+            scan_roots = [self._project_root / inc for inc in paths.include]
+        else:
+            scan_roots = [self._project_root]
+
+        for root in scan_roots:
+            if not root.exists():
+                continue
+
+            for py_file in root.rglob("*.py"):
+                # Skip files starting with underscore
+                if py_file.name.startswith("_"):
+                    continue
+
+                if not self._should_exclude(py_file, exclude_patterns):
+                    discovered.extend(self._extract_from_module(py_file))
+
+        return discovered
+
+    def _should_exclude(self, py_file: Path, exclude_patterns: list[str]) -> bool:
+        """Check if a file should be excluded based on patterns.
+
+        Patterns can match:
+        - Just the filename (e.g., "test_*.py", "conftest.py")
+        - Full path patterns (e.g., "**/tests/**", "**/venv/**")
+        """
+        # Get path relative to project root for pattern matching
+        try:
+            rel_path = py_file.relative_to(self._project_root)
+        except ValueError:
+            # File is outside project root, use absolute path
+            rel_path = py_file
+
+        # Use forward slashes for cross-platform compatibility
+        rel_path_str = str(rel_path).replace("\\", "/")
+
+        for pattern in exclude_patterns:
+            # Check filename match (e.g., "test_*.py")
+            if fnmatch.fnmatch(py_file.name, pattern):
+                return True
+
+            # Check if any path component matches a directory pattern
+            # For patterns like "**/tests/**" or "**/venv/**"
+            if "**" in pattern:
+                # Extract the directory name from patterns like "**/tests/**"
+                # This handles patterns where we want to exclude any path
+                # containing a specific directory
+                pattern_parts = pattern.replace("\\", "/").split("/")
+                for part in pattern_parts:
+                    if part and part != "**" and "*" not in part:
+                        # Check if this directory name appears in the path
+                        if part in rel_path.parts:
+                            return True
+
+            # Check full path match using fnmatch (for non-** patterns)
+            if fnmatch.fnmatch(rel_path_str, pattern):
+                return True
+
+        return False
 
     def _scan_directory(self, directory: Path) -> list[DiscoveredObject]:
         """Scan a directory for Python files and extract definitions."""
@@ -104,65 +190,44 @@ class DefinitionDiscoverer:
 
     def _extract_from_module(self, py_file: Path) -> list[DiscoveredObject]:
         """Import a Python file and extract SDK objects."""
-        discovered: list[DiscoveredObject] = []
-
-        # Create unique module name
         module_name = f"_strata_discovery_{py_file.stem}_{id(py_file)}"
 
         spec = importlib.util.spec_from_file_location(module_name, py_file)
         if spec is None or spec.loader is None:
-            return discovered
+            return []
 
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
 
+        # Map SDK types to their kind names
+        sdk_types = {
+            core.Entity: "entity",
+            core.FeatureTable: "feature_table",
+            core.SourceTable: "source_table",
+            core.Dataset: "dataset",
+        }
+
+        discovered: list[DiscoveredObject] = []
         try:
             spec.loader.exec_module(module)
 
-            # Find SDK objects in module namespace
             for name in dir(module):
                 if name.startswith("_"):
                     continue
                 obj = getattr(module, name)
 
-                if isinstance(obj, core.Entity):
-                    discovered.append(
-                        DiscoveredObject(
-                            kind="entity",
-                            name=obj.name,
-                            obj=obj,
-                            source_file=str(py_file),
+                for sdk_type, kind in sdk_types.items():
+                    if isinstance(obj, sdk_type):
+                        discovered.append(
+                            DiscoveredObject(
+                                kind=kind,
+                                name=obj.name,
+                                obj=obj,
+                                source_file=str(py_file),
+                            )
                         )
-                    )
-                elif isinstance(obj, core.FeatureTable):
-                    discovered.append(
-                        DiscoveredObject(
-                            kind="feature_table",
-                            name=obj.name,
-                            obj=obj,
-                            source_file=str(py_file),
-                        )
-                    )
-                elif isinstance(obj, core.SourceTable):
-                    discovered.append(
-                        DiscoveredObject(
-                            kind="source_table",
-                            name=obj.name,
-                            obj=obj,
-                            source_file=str(py_file),
-                        )
-                    )
-                elif isinstance(obj, core.Dataset):
-                    discovered.append(
-                        DiscoveredObject(
-                            kind="dataset",
-                            name=obj.name,
-                            obj=obj,
-                            source_file=str(py_file),
-                        )
-                    )
+                        break
         finally:
-            # Clean up
             del sys.modules[module_name]
 
         return discovered

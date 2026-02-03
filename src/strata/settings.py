@@ -8,13 +8,14 @@ from __future__ import annotations
 
 from functools import cache
 from pathlib import Path
+from typing import Annotated, ClassVar, Union
 
 import omegaconf as oc
 import pydantic as pdt
 import pydantic_settings as pdts
 
 import strata.errors as errors
-import strata.plugins.factory as factory
+import strata.plugins as plugins
 
 
 class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
@@ -23,8 +24,8 @@ class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
     pass
 
 
-class PathsSettings(Settings):
-    """Project path configuration.
+class LegacyPathsSettings(Settings):
+    """Legacy path configuration (backward compatible).
 
     Defines where feature definitions are located within the project.
     All paths are relative to the project root (where strata.yaml lives).
@@ -35,6 +36,65 @@ class PathsSettings(Settings):
     entities: str = "entities/"
 
 
+class SmartPathsSettings(Settings):
+    """Smart path configuration with include/exclude patterns.
+
+    When no paths section is provided, or when using include/exclude,
+    Strata will scan all Python files and use isinstance() to find SDK objects.
+
+    Default exclusions skip test files, virtual environments, and other
+    non-source directories.
+    """
+
+    include: list[str] = pdt.Field(default_factory=list)
+    exclude: list[str] = pdt.Field(default_factory=list)
+
+    DEFAULT_EXCLUDES: ClassVar[list[str]] = [
+        "test_*.py",
+        "*_test.py",
+        "conftest.py",
+        "**/tests/**",
+        "**/test/**",
+        "**/__pycache__/**",
+        "**/.*/**",  # Hidden directories
+        "**/venv/**",
+        "**/.venv/**",
+        "**/env/**",
+        "**/node_modules/**",
+        "**/build/**",
+        "**/dist/**",
+        "**/*.egg-info/**",
+        "**/site-packages/**",
+    ]
+
+
+def _discriminate_paths(v: dict | LegacyPathsSettings | SmartPathsSettings) -> str:
+    """Discriminate between legacy and smart paths configuration."""
+    if isinstance(v, SmartPathsSettings):
+        return "smart"
+    if isinstance(v, LegacyPathsSettings):
+        return "legacy"
+
+    keys = set(v.keys())
+    has_legacy = bool(keys & {"tables", "datasets", "entities"})
+    has_smart = bool(keys & {"include", "exclude"})
+
+    if has_legacy and has_smart:
+        msg = "Cannot mix legacy paths (tables/datasets/entities) with smart paths (include/exclude)"
+        raise ValueError(msg)
+
+    return "legacy" if has_legacy else "smart"
+
+
+PathsSettings = Annotated[
+    Union[
+        Annotated[LegacyPathsSettings, pdt.Tag("legacy")],
+        Annotated[SmartPathsSettings, pdt.Tag("smart")],
+    ],
+    pdt.Discriminator(_discriminate_paths),
+]
+
+
 class EnvironmentSettings(Settings):
     """Configuration for a single environment (dev, stg, prd).
 
@@ -43,9 +103,9 @@ class EnvironmentSettings(Settings):
     """
 
     catalog: str | None = None
-    registry: factory.RegistryKind = pdt.Field(..., discriminator="kind")
-    storage: factory.StorageKind = pdt.Field(..., discriminator="kind")
-    compute: factory.ComputeKind = pdt.Field(..., discriminator="kind")
+    registry: plugins.RegistryKind = pdt.Field(..., discriminator="kind")
+    storage: plugins.StorageKind = pdt.Field(..., discriminator="kind")
+    compute: plugins.ComputeKind = pdt.Field(..., discriminator="kind")
 
 
 class StrataSettings(Settings):
@@ -78,7 +138,7 @@ class StrataSettings(Settings):
     name: str
     default_env: str
     schedules: list[str] = pdt.Field(default_factory=list)
-    paths: PathsSettings = pdt.Field(default_factory=PathsSettings)
+    paths: PathsSettings = pdt.Field(default_factory=SmartPathsSettings)
     environments: dict[str, EnvironmentSettings]
 
     # Internal: tracks which env is currently active (set via resolve_environment)

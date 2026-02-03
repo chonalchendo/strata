@@ -6,11 +6,7 @@ schedules:
   - hourly
   - daily
 
-# Project paths (relative to strata.yaml)
-paths:
-  tables: tables/
-  datasets: datasets/
-  entities: entities/
+# No paths section - uses smart discovery (scans all Python files)
 
 environments:
   dev:

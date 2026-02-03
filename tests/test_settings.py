@@ -218,27 +218,99 @@ class TestScheduleValidation:
 class TestPathsConfiguration:
     """Tests for paths configuration."""
 
-    def test_default_paths(self, valid_config: str) -> None:
-        """Default paths are used when not specified."""
+    def test_no_paths_uses_smart_discovery(self, valid_config: str) -> None:
+        """No paths section uses SmartPathsSettings with defaults."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(valid_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
 
-        assert config.paths.tables == "tables/"
-        assert config.paths.datasets == "datasets/"
-        assert config.paths.entities == "entities/"
+        assert isinstance(config.paths, settings.SmartPathsSettings)
+        assert config.paths.include == []
+        assert config.paths.exclude == []
 
-    def test_custom_paths(self, full_config: str) -> None:
-        """Custom paths override defaults."""
+    def test_legacy_paths_uses_legacy_settings(self, full_config: str) -> None:
+        """Legacy paths (tables/datasets/entities) use LegacyPathsSettings."""
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
 
+        assert isinstance(config.paths, settings.LegacyPathsSettings)
         assert config.paths.tables == "features/tables/"
         assert config.paths.datasets == "features/datasets/"
         assert config.paths.entities == "features/entities/"
+
+    def test_smart_paths_with_include_exclude(self) -> None:
+        """Smart paths with include/exclude use SmartPathsSettings."""
+        config_str = """
+name: test-project
+default_env: dev
+paths:
+  include:
+    - src/features/
+  exclude:
+    - "**/scratch/**"
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: test_catalog
+    compute:
+      kind: duckdb
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(config_str)
+            f.flush()
+            config = settings.load_strata_settings(Path(f.name))
+
+        assert isinstance(config.paths, settings.SmartPathsSettings)
+        assert config.paths.include == ["src/features/"]
+        assert config.paths.exclude == ["**/scratch/**"]
+
+    def test_mixing_legacy_and_smart_paths_raises_error(self) -> None:
+        """Mixing legacy and smart paths raises ConfigValidationError."""
+        config_str = """
+name: test-project
+default_env: dev
+paths:
+  tables: tables/
+  include:
+    - src/
+environments:
+  dev:
+    registry:
+      kind: sqlite
+      path: .strata/registry.db
+    storage:
+      kind: local
+      path: .strata/data
+      catalog: test_catalog
+    compute:
+      kind: duckdb
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(config_str)
+            f.flush()
+            with pytest.raises(errors.ConfigValidationError) as exc_info:
+                settings.load_strata_settings(Path(f.name))
+
+        assert "mix" in str(exc_info.value).lower()
+
+    def test_smart_paths_default_excludes(self) -> None:
+        """SmartPathsSettings has sensible default exclusions."""
+        # Check DEFAULT_EXCLUDES contains expected patterns
+        defaults = settings.SmartPathsSettings.DEFAULT_EXCLUDES
+        assert "test_*.py" in defaults
+        assert "*_test.py" in defaults
+        assert "conftest.py" in defaults
+        assert "**/tests/**" in defaults
+        assert "**/venv/**" in defaults
+        assert "**/__pycache__/**" in defaults
 
 
 class TestCatalogInjection:
