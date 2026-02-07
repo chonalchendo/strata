@@ -4,7 +4,7 @@ import pytest
 
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 
 @pytest.fixture

@@ -20,7 +20,7 @@ import strata.diff as diff
 import strata.discovery as discovery
 import strata.errors as errors
 import strata.output as output
-import strata.plugins as plugins
+import strata.backends as backends
 import strata.registry as reg_types
 import strata.settings as settings
 import strata.validation as validation
@@ -44,7 +44,7 @@ def _handle_error(e: errors.StrataError) -> None:
     console.print(f"[green]Fix:[/green] {e.fix}")
 
 
-def _get_registry(strata_settings: settings.StrataSettings) -> plugins.RegistryKind:
+def _get_registry(strata_settings: settings.StrataSettings) -> backends.RegistryKind:
     """Get registry backend for current environment."""
     return strata_settings.active_environment.registry
 

@@ -1,6 +1,6 @@
-from strata.plugins.base import BaseSourceConfig
-from strata.plugins.duckdb import DuckDBSourceConfig
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.base import BaseSourceConfig
+from strata.backends.duckdb import DuckDBSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 
 class TestDuckDBSourceConfig:

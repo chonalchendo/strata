@@ -72,7 +72,7 @@ class TestDownCommand:
                 run_cli(["up", "--yes"])
 
         # Verify objects exist
-        from strata.plugins.sqlite.registry import SqliteRegistry
+        from strata.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -95,7 +95,7 @@ class TestDownCommand:
             with patch.object(output_mod.console, "print"):
                 run_cli(["up", "--yes"])
 
-        from strata.plugins.sqlite.registry import SqliteRegistry
+        from strata.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))

@@ -1,7 +1,7 @@
-"""Base classes for Strata plugins.
+"""Base classes for Strata backends.
 
-Plugins provide backend implementations for registry, storage, and compute.
-Each environment in strata.yaml specifies which plugin to use for each role.
+Backends provide implementations for registry and data operations.
+Each environment in strata.yaml specifies which backend to use.
 """
 
 from __future__ import annotations

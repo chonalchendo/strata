@@ -15,7 +15,7 @@ import pydantic as pdt
 import pydantic_settings as pdts
 
 import strata.errors as errors
-import strata.plugins as plugins
+import strata.backends as backends
 
 
 class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
@@ -103,9 +103,9 @@ class EnvironmentSettings(Settings):
     """
 
     catalog: str | None = None
-    registry: plugins.RegistryKind = pdt.Field(..., discriminator="kind")
-    storage: plugins.StorageKind = pdt.Field(..., discriminator="kind")
-    compute: plugins.ComputeKind = pdt.Field(..., discriminator="kind")
+    registry: backends.RegistryKind = pdt.Field(..., discriminator="kind")
+    storage: backends.StorageKind = pdt.Field(..., discriminator="kind")
+    compute: backends.ComputeKind = pdt.Field(..., discriminator="kind")
 
 
 class StrataSettings(Settings):

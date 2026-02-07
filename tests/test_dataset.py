@@ -79,7 +79,7 @@ class TestFullSDKIntegration:
 
     def test_entity_to_dataset_workflow(self):
         from datetime import timedelta
-        from strata.plugins.duckdb import DuckDBSourceConfig
+        from strata.backends.duckdb import DuckDBSourceConfig
         import strata.sources as sources
 
         # 1. Define entity

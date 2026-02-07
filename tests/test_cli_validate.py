@@ -67,7 +67,7 @@ user = core.Entity(name="user", join_keys=["user_id"])
         """
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 # Reference entity - must match spec from entities/user.py exactly
 user = core.Entity(name="user", join_keys=["user_id"])
@@ -122,7 +122,7 @@ environments:
         """
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 # Missing entity definition
 user = core.Entity(name="user", join_keys=["user_id"])
@@ -270,7 +270,7 @@ environments:
             """
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 user = core.Entity(name="user", join_keys=["user_id"])
 

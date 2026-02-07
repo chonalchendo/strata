@@ -90,7 +90,7 @@ entity_{i:03d} = core.Entity(
             f"""
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 # Reference entity with matching spec (same as entities/entity_{entity_idx:03d}.py)
 entity_{entity_idx:03d} = core.Entity(

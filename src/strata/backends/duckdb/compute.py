@@ -2,7 +2,7 @@ from typing import Literal
 
 import pydantic as pdt
 
-import strata.plugins.base as base
+import strata.backends.base as base
 
 
 class DuckDBCompute(base.BaseCompute):

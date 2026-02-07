@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-import strata.plugins.base as base
+import strata.backends.base as base
 
 
 class LocalStorage(base.BaseStorage):
@@ -17,7 +17,7 @@ class LocalSourceConfig(base.BaseSourceConfig):
     """Local file source configuration.
 
     Example:
-        from strata.plugins.local.storage import LocalSourceConfig
+        from strata.backends.local.storage import LocalSourceConfig
 
         config = LocalSourceConfig(
             path="./data/events.parquet",

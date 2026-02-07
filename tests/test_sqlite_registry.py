@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import strata.plugins.sqlite as sqlite
+import strata.backends.sqlite as sqlite
 import strata.registry as registry
 
 

@@ -2,8 +2,8 @@ from datetime import timedelta
 
 
 import strata.sources as sources
-from strata.plugins.duckdb import DuckDBSourceConfig
-from strata.plugins.local.storage import LocalSourceConfig
+from strata.backends.duckdb import DuckDBSourceConfig
+from strata.backends.local.storage import LocalSourceConfig
 
 
 class TestBatchSource:

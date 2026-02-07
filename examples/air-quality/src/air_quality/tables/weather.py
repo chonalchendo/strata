@@ -1,5 +1,5 @@
 import strata as st
-import strata.plugins.local.storage as local_storage
+import strata.backends.local.storage as local_storage
 
 city = st.Entity(
     name="City", description="City to get weather data for.", join_keys=["city"]

@@ -1,5 +1,5 @@
 import strata as st
-import strata.plugins.local.storage as local_storage
+import strata.backends.local.storage as local_storage
 
 # historical_url = (
 #     "https://aqicn.org/historical/#city:united-kingdom/edinburgh-st-leonards"

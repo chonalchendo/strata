@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Literal
 
-import strata.plugins.base as base
+import strata.backends.base as base
 
 
 class DuckDBSourceConfig(base.BaseSourceConfig):
     """DuckDB source configuration for local files.
 
     Example:
-        from strata.plugins.duckdb.storage import DuckDBSourceConfig
+        from strata.backends.duckdb.storage import DuckDBSourceConfig
 
         config = DuckDBSourceConfig(
             path="./data/transactions.parquet",

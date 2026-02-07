@@ -1,5 +1,5 @@
 from .core import Dataset, Entity, Feature, FeatureTable, Field, Schema, SourceTable
-from .plugins.local import LocalSourceConfig
+from .backends.local import LocalSourceConfig
 from .sources import BatchSource, RealTimeSource, StreamSource
 
 __all__ = [

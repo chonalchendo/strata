@@ -4,7 +4,7 @@ import pytest
 
 import strata.core as core
 import strata.sources as sources
-from strata.plugins.duckdb import DuckDBSourceConfig
+from strata.backends.duckdb import DuckDBSourceConfig
 
 
 @pytest.fixture

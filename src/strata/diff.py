@@ -13,7 +13,7 @@ import strata.discovery as discovery
 import strata.registry as registry
 
 if TYPE_CHECKING:
-    import strata.plugins.base as base
+    import strata.backends.base as base
 
 
 class ChangeOperation(str, Enum):

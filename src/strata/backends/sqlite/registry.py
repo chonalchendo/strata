@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import strata.plugins.base as base
+import strata.backends.base as base
 import strata.registry as registry
 
 # Strata version for meta table

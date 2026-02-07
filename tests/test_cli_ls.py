@@ -72,7 +72,7 @@ class TestLsCommand:
                 run_cli(["up", "--yes"])
 
         # List objects - check via registry directly
-        from strata.plugins.sqlite.registry import SqliteRegistry
+        from strata.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -98,7 +98,7 @@ class TestLsCommand:
                 run_cli(["up", "--yes"])
 
         # Verify via registry that filtering by kind works
-        from strata.plugins.sqlite.registry import SqliteRegistry
+        from strata.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -198,7 +198,7 @@ environments:
             """
 import strata.core as core
 import strata.sources as sources
-import strata.plugins.local.storage as local_storage
+import strata.backends.local.storage as local_storage
 
 entity = core.Entity(name="user", join_keys=["user_id"])
 

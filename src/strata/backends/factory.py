@@ -2,9 +2,9 @@ from typing import Annotated
 
 import pydantic as pdt
 
-import strata.plugins.duckdb as duckdb
-import strata.plugins.local as local
-import strata.plugins.sqlite as sqlite
+import strata.backends.duckdb as duckdb
+import strata.backends.local as local
+import strata.backends.sqlite as sqlite
 
 RegistryKind = Annotated[sqlite.SqliteRegistry, pdt.Field(discriminator="kind")]
 
