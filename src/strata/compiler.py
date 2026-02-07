@@ -11,6 +11,7 @@ from datetime import timedelta
 from typing import TYPE_CHECKING
 
 import ibis
+import ibis.expr.datatypes as dt
 import ibis.expr.types as ir
 
 if TYPE_CHECKING:
@@ -25,6 +26,18 @@ _AGG_FUNCTIONS: dict[str, str] = {
     "min": "min",
     "max": "max",
     "count_distinct": "nunique",
+}
+
+# Map strata dtype strings to ibis data types
+_DTYPE_MAP: dict[str, dt.DataType] = {
+    "int64": dt.int64,
+    "int32": dt.int32,
+    "float64": dt.float64,
+    "float32": dt.float32,
+    "string": dt.string,
+    "bool": dt.boolean,
+    "datetime": dt.timestamp,
+    "date": dt.date,
 }
 
 
@@ -87,13 +100,44 @@ class IbisCompiler:
         return expr
 
     def _create_source_expression(self, table: core.FeatureTable) -> ir.Table:
-        """Create the base Ibis table expression from the source."""
+        """Create the base Ibis table expression from the source.
+
+        Infers a schema from the FeatureTable definition by collecting
+        referenced columns from aggregates, custom features, entity join
+        keys, and the timestamp field.
+        """
         import strata.core as core_module
 
+        schema = self._infer_schema(table)
+
         if isinstance(table.source, core_module.FeatureTable):
-            # DAG dependency -- reference the upstream table by name
-            return ibis.table(name=table.source.name)
-        return ibis.table(name=table.source_name)
+            return ibis.table(schema=schema, name=table.source.name)
+        return ibis.table(schema=schema, name=table.source_name)
+
+    def _infer_schema(self, table: core.FeatureTable) -> dict[str, dt.DataType]:
+        """Infer an Ibis schema from FeatureTable column references.
+
+        Collects columns from entity join keys, timestamp field, and
+        aggregate source columns. Defaults to string type for join keys
+        and timestamp type for the timestamp field.
+        """
+        schema: dict[str, dt.DataType] = {}
+
+        # Entity join keys (default to string)
+        for key in table.entity.join_keys:
+            schema[key] = dt.string
+
+        # Timestamp field
+        schema[table.timestamp_field] = dt.timestamp
+
+        # Aggregate source columns -- infer type from field dtype if available
+        for agg_def in table._aggregates:
+            column = agg_def["column"]
+            field = agg_def["field"]
+            if column not in schema:
+                schema[column] = _DTYPE_MAP.get(field.dtype, dt.float64)
+
+        return schema
 
     def _apply_transforms(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
         """Apply registered @transform functions in order."""
