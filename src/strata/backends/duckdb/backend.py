@@ -7,13 +7,16 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import Literal, override
+from typing import TYPE_CHECKING, Literal, override
 
 import pyarrow as pa
 import pydantic as pdt
 
 import strata.backends.base as base
 import strata.formats as formats
+
+if TYPE_CHECKING:
+    import ibis
 
 
 class DuckDBBackend(base.BaseBackend):

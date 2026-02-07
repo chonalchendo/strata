@@ -226,10 +226,7 @@ class TestDeltaFormat:
         fmt.write(path=output, data=update, mode="merge", merge_keys=["user_id"])
 
         result = fmt.read(path=output)
-        result_dict = {
-            row["user_id"]: row["amount"]
-            for row in result.to_pylist()
-        }
+        result_dict = {row["user_id"]: row["amount"] for row in result.to_pylist()}
         assert result_dict["u1"] == 99.0  # Updated
         assert result_dict["u2"] == 20.0  # Unchanged
         assert result_dict["u4"] == 40.0  # Inserted

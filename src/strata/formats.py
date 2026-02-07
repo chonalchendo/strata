@@ -129,9 +129,7 @@ class DeltaFormat(BaseFormat):
         if mode == "merge" and merge_keys:
             if dl.DeltaTable.is_deltatable(str_path):
                 dt = dl.DeltaTable(str_path)
-                predicate = " AND ".join(
-                    f"target.{k} = source.{k}" for k in merge_keys
-                )
+                predicate = " AND ".join(f"target.{k} = source.{k}" for k in merge_keys)
                 (
                     dt.merge(
                         source=data,

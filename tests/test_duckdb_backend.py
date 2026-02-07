@@ -4,10 +4,7 @@ Tests backend operations: table paths, format delegation, connect(),
 write/read round-trip, drop_table, table_exists.
 """
 
-from pathlib import Path
-
 import pyarrow as pa
-import pytest
 
 import strata.backends.duckdb.backend as duckdb_backend
 import strata.formats as formats
@@ -93,8 +90,6 @@ class TestConnect:
 
     def test_connect_returns_ibis_backend(self, tmp_path):
         """connect() returns a working Ibis DuckDB backend."""
-        import ibis
-
         backend = duckdb_backend.DuckDBBackend(
             path=str(tmp_path / "data"),
             catalog="features",
