@@ -9,8 +9,12 @@ import getpass
 import json
 import socket
 import time
+from datetime import datetime
 from pathlib import Path
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
+
+if TYPE_CHECKING:
+    import strata.build as build_mod
 
 import cyclopts
 from loguru import logger
@@ -347,44 +351,184 @@ def build(
         str | None,
         cyclopts.Parameter(name="--schedule", help="Filter tables by schedule tag"),
     ] = None,
-    start_date: Annotated[
+    full_refresh: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name="--full-refresh",
+            help="Drop and rebuild all tables from scratch",
+        ),
+    ] = False,
+    start: Annotated[
         str | None,
         cyclopts.Parameter(
-            name="--start-date", help="Backfill start date (YYYY-MM-DD)"
+            name="--start", help="Backfill start date (YYYY-MM-DD)"
         ),
     ] = None,
-    end_date: Annotated[
+    end: Annotated[
         str | None,
-        cyclopts.Parameter(name="--end-date", help="Backfill end date (YYYY-MM-DD)"),
+        cyclopts.Parameter(name="--end", help="Backfill end date (YYYY-MM-DD)"),
     ] = None,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to build in"),
     ] = None,
 ):
-    """Materialize feature tables."""
+    """Materialize feature tables.
+
+    Builds all discovered feature tables in DAG order. Use a table name
+    to build a specific table (with its dependencies). Use --schedule to
+    filter tables by schedule tag.
+
+    Operational overrides:
+      --full-refresh drops and rebuilds tables (ignores table write_mode).
+      --start / --end builds for a specific date range (backfill).
+
+    Examples:
+        strata build                         # Build all tables
+        strata build user_transactions       # Build specific table + deps
+        strata build --schedule hourly       # Build hourly-scheduled tables
+        strata build --full-refresh          # Drop and rebuild everything
+        strata build --start 2024-01-01 --end 2024-02-01  # Backfill range
+    """
     try:
+        import strata.build as build_mod
+
         strata_settings = settings.load_strata_settings(env=env_name)
 
         # Validate schedule tag if provided
         if schedule:
             strata_settings.validate_schedule(schedule)
 
+        # Validate date range: both or neither
+        if (start is None) != (end is None):
+            console.print(
+                "[red]Error:[/red] --start and --end must be used together"
+            )
+            raise SystemExit(1)
+
+        # Parse date strings
+        start_dt = _parse_date(start) if start else None
+        end_dt = _parse_date(end) if end else None
+
+        # Print build context header
         console.print(f"[bold]Building in {strata_settings.active_env}...[/bold]")
-
         if table:
-            console.print(f"  Table: {table}")
+            console.print(f"  Target: {table}")
         if schedule:
-            console.print(f"  Schedule filter: {schedule}")
-        if start_date and end_date:
-            console.print(f"  Date range: {start_date} to {end_date}")
+            console.print(f"  Schedule: {schedule}")
+        if full_refresh:
+            console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
+        if start_dt and end_dt:
+            console.print(f"  Date range: {start} to {end}")
+        console.print()
 
-        # TODO: Implement build
-        console.print("[yellow]Not implemented yet[/yellow]")
+        # Discover feature tables
+        discovered = discovery.discover_definitions(strata_settings)
+        feature_tables = [
+            d.obj for d in discovered if d.kind == "feature_table"
+        ]
+
+        if not feature_tables:
+            console.print("[dim]No feature tables found[/dim]")
+            return
+
+        # Filter by schedule tag if provided
+        if schedule:
+            feature_tables = [
+                ft for ft in feature_tables if ft.schedule == schedule
+            ]
+            if not feature_tables:
+                console.print(
+                    f"[dim]No feature tables with schedule '{schedule}'[/dim]"
+                )
+                return
+
+        # Build using settings backend (NOT manually constructed)
+        env_cfg = strata_settings.active_environment
+        engine = build_mod.BuildEngine(backend=env_cfg.backend)
+
+        targets = [table] if table else None
+        t0 = time.perf_counter()
+
+        result = engine.build(
+            tables=feature_tables,
+            targets=targets,
+            full_refresh=full_refresh,
+            start=start_dt,
+            end=end_dt,
+        )
+
+        elapsed = time.perf_counter() - t0
+
+        # Display results in Pulumi-style output
+        _render_build_results(result, elapsed)
+
+        # Exit non-zero on failure
+        if not result.is_success:
+            raise SystemExit(1)
 
     except errors.StrataError as e:
         _handle_error(e)
         raise SystemExit(1)
+
+
+def _parse_date(date_str: str) -> datetime:
+    """Parse a YYYY-MM-DD date string into a datetime."""
+    try:
+        return datetime.strptime(date_str, "%Y-%m-%d")
+    except ValueError:
+        console.print(
+            f"[red]Error:[/red] Invalid date format '{date_str}'. "
+            "Expected YYYY-MM-DD."
+        )
+        raise SystemExit(1)
+
+
+def _render_build_results(
+    result: build_mod.BuildResult, elapsed: float
+) -> None:
+    """Render build results in Pulumi-style output."""
+    import strata.build as build_mod
+
+    for table_result in result.table_results:
+        status = table_result.status
+        name = table_result.table_name
+
+        if status == build_mod.BuildStatus.SUCCESS:
+            duration = (
+                f" ({table_result.duration_ms:.0f}ms)"
+                if table_result.duration_ms is not None
+                else ""
+            )
+            rows = (
+                f" [{table_result.row_count} rows]"
+                if table_result.row_count is not None
+                else ""
+            )
+            console.print(
+                f"[green]\u2713[/green] {name}{rows}{duration}"
+            )
+        elif status == build_mod.BuildStatus.FAILED:
+            error = f": {table_result.error}" if table_result.error else ""
+            console.print(f"[red]\u2717[/red] {name}{error}")
+        elif status == build_mod.BuildStatus.SKIPPED:
+            error = f": {table_result.error}" if table_result.error else ""
+            console.print(f"[yellow]\u2298[/yellow] {name}{error}")
+
+    console.print()
+
+    # Summary line
+    parts = []
+    if result.success_count:
+        parts.append(f"[green]{result.success_count} succeeded[/green]")
+    if result.failed_count:
+        parts.append(f"[red]{result.failed_count} failed[/red]")
+    if result.skipped_count:
+        parts.append(f"[yellow]{result.skipped_count} skipped[/yellow]")
+
+    total = len(result.table_results)
+    summary = ", ".join(parts) if parts else "0 tables"
+    console.print(f"[bold]Build complete:[/bold] {summary} ({total} total, {elapsed:.1f}s)")
 
 
 @app.command
