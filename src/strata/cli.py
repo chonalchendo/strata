@@ -6,7 +6,6 @@ Define features in Python, run locally, scale to Databricks.
 from __future__ import annotations
 
 import getpass
-import json
 import socket
 import time
 from datetime import datetime
@@ -546,10 +545,13 @@ def compile(
 ):
     """Generate SQL files to .strata/compiled/ directory.
 
-    Creates query.sql and lineage.json for each feature table.
-    Useful for debugging and auditing.
+    Creates query.sql, ibis_expr.txt, lineage.json, and build_context.json
+    for each feature table. Useful for debugging and auditing.
     """
     try:
+        import strata.compile_output as compile_output
+        import strata.compiler as compiler_mod
+
         strata_settings = settings.load_strata_settings(env=env_name)
         console.print(f"[bold]Compiling for {strata_settings.active_env}...[/bold]")
         console.print()
@@ -587,35 +589,23 @@ def compile(
         )
         output_dir = project_root / ".strata" / "compiled"
 
+        ibis_compiler = compiler_mod.IbisCompiler()
         compiled_count = 0
+
         for disc in feature_tables:
-            table_dir = output_dir / disc.name
-            table_dir.mkdir(parents=True, exist_ok=True)
+            # Compile the table to real SQL via Ibis
+            compiled = ibis_compiler.compile_table(disc.obj)
 
-            # Generate spec as placeholder for SQL (actual Ibis compilation is Phase 4)
-            spec = discovery.serialize_to_spec(disc.obj, disc.kind)
-
-            # Write query.sql (placeholder - will be real SQL in Phase 4)
-            query_path = table_dir / "query.sql"
-            query_path.write_text(
-                f"-- Compiled from {disc.source_file}\n"
-                f"-- Actual SQL generation in Phase 4\n"
-                f"-- Feature table: {disc.name}\n"
+            # Write enhanced output (query.sql, ibis_expr.txt, lineage.json, build_context.json)
+            table_dir = compile_output.write_compile_output(
+                compiled=compiled,
+                disc=disc,
+                output_dir=output_dir,
+                env=strata_settings.active_env,
+                strata_version=__version__,
             )
 
-            # Write lineage.json
-            lineage_path = table_dir / "lineage.json"
-            lineage = {
-                "table": disc.name,
-                "source_file": disc.source_file,
-                "entity": spec.get("entity"),
-                "source": spec.get("source"),
-                "aggregates": [a["name"] for a in spec.get("aggregates", [])],
-                "custom_features": [f["name"] for f in spec.get("custom_features", [])],
-            }
-            lineage_path.write_text(json.dumps(lineage, indent=2))
-
-            console.print(f"[green]✓[/green] {disc.name}")
+            console.print(f"[green]\u2713[/green] {disc.name}")
             console.print(f"  [dim]{table_dir}/query.sql[/dim]")
             console.print(f"  [dim]{table_dir}/lineage.json[/dim]")
             compiled_count += 1
