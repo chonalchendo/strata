@@ -132,7 +132,7 @@ class DuckDBBackend(base.BaseBackend):
         Returns:
             PyArrow Table with query results.
         """
-        return conn.execute(expr)
+        return conn.to_pyarrow(expr)
 
     @override
     def write_table(
@@ -178,14 +178,16 @@ class DuckDBBackend(base.BaseBackend):
 
     @override
     def drop_table(self, table_name: str) -> None:
-        """Remove a table directory and all its data.
+        """Remove a table and all its data (file or directory).
 
         Args:
             table_name: Logical table name to drop.
         """
         table_path = self._table_path(table_name)
-        if table_path.exists():
+        if table_path.is_dir():
             shutil.rmtree(table_path)
+        elif table_path.is_file():
+            table_path.unlink()
 
     @override
     def delete_range(
