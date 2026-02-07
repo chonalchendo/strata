@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import timedelta
-from typing import Callable
+from typing import Callable, Literal
 
 import pydantic as pdt
 
@@ -48,6 +48,12 @@ class FeatureTable(StrataBaseModel):
     schedule: str | None = None  # Optional tag, validated at preview/up
     owner: str | None = None
     tags: dict[str, str] | None = None
+
+    # Write semantics
+    write_mode: Literal["append", "merge"] = "append"
+    merge_keys: list[str] | None = None  # None = use entity.join_keys
+    lookback: timedelta | None = None  # Late-arriving data window
+
     sla: "checks.SLA | None" = None
 
     # Internal storage for features
@@ -91,6 +97,13 @@ class FeatureTable(StrataBaseModel):
     def source_name(self) -> str:
         """Name of the source table or source."""
         return self.source.name
+
+    @property
+    def effective_merge_keys(self) -> list[str]:
+        """Return merge keys, defaulting to entity join_keys."""
+        if self.merge_keys is not None:
+            return self.merge_keys
+        return self.entity.join_keys
 
     def features_list(self) -> list[Feature]:
         """Return all features defined in this table."""
