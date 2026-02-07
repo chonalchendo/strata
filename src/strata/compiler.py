@@ -86,11 +86,16 @@ class IbisCompiler:
         expr = self._build_expression(
             table, source_schema=source_schema, date_range=date_range
         )
-        sql = self._to_sql(expr)
-        source_tables = self._extract_source_tables(table)
+
+        import strata.core as core_module
+
+        if isinstance(table.source, core_module.FeatureTable):
+            source_tables = [table.source.name]
+        else:
+            source_tables = [table.source_name]
 
         return CompiledQuery(
-            sql=sql,
+            sql=ibis.to_sql(expr, dialect="duckdb"),
             ibis_expr=expr,
             table_name=table.name,
             source_tables=source_tables,
@@ -106,39 +111,9 @@ class IbisCompiler:
 
         Execution order: source -> date_range_filter -> transforms -> aggregates/custom_features
         """
-        expr = self._create_source_expression(table, source_schema=source_schema)
-
-        # Apply date range filter before transforms (timestamp col still available)
-        if date_range is not None:
-            start, end = date_range
-            ts_col = expr[table.timestamp_field]
-            expr = expr.filter((ts_col >= start) & (ts_col < end))
-
-        # Apply transforms first (filter/reshape the source)
-        expr = self._apply_transforms(expr, table)
-
-        # Apply aggregates if present
-        if table._aggregates:
-            expr = self._apply_aggregates(expr, table)
-
-        # Apply custom features
-        expr = self._apply_custom_features(expr, table)
-
-        return expr
-
-    def _create_source_expression(
-        self,
-        table: core.FeatureTable,
-        source_schema: dict[str, str] | None = None,
-    ) -> ir.Table:
-        """Create the base Ibis table expression from the source.
-
-        When *source_schema* is provided the compiler uses the real column
-        types.  Otherwise it infers a minimal schema from the FeatureTable
-        definition (join keys, timestamp, aggregate columns).
-        """
         import strata.core as core_module
 
+        # Build source expression
         if source_schema is not None:
             schema = {
                 col: _DTYPE_MAP.get(dtype, dt.string)
@@ -148,16 +123,35 @@ class IbisCompiler:
             schema = self._infer_schema(table)
 
         if isinstance(table.source, core_module.FeatureTable):
-            return ibis.table(schema=schema, name=table.source.name)
-        return ibis.table(schema=schema, name=table.source_name)
+            expr = ibis.table(schema=schema, name=table.source.name)
+        else:
+            expr = ibis.table(schema=schema, name=table.source_name)
+
+        # Apply date range filter before transforms (timestamp col still available)
+        if date_range is not None:
+            start, end = date_range
+            ts_col = expr[table.timestamp_field]
+            expr = expr.filter((ts_col >= start) & (ts_col < end))
+
+        # Apply transforms first (filter/reshape the source)
+        for transform_func in table._transforms:
+            expr = transform_func(expr)
+
+        # Apply aggregates if present
+        if table._aggregates:
+            expr = self._apply_aggregates(expr, table)
+
+        # Apply custom features
+        for custom_def in table._custom_features:
+            name: str = custom_def["name"]
+            func = custom_def["func"]
+            col_expr = func(expr)
+            expr = expr.mutate(**{name: col_expr})
+
+        return expr
 
     def _infer_schema(self, table: core.FeatureTable) -> dict[str, dt.DataType]:
-        """Infer an Ibis schema from FeatureTable column references.
-
-        Collects columns from entity join keys, timestamp field, and
-        aggregate source columns. Defaults to string type for join keys
-        and timestamp type for the timestamp field.
-        """
+        """Infer an Ibis schema from FeatureTable column references."""
         schema: dict[str, dt.DataType] = {}
 
         # Entity join keys (default to string)
@@ -175,12 +169,6 @@ class IbisCompiler:
                 schema[column] = _DTYPE_MAP.get(field.dtype, dt.float64)
 
         return schema
-
-    def _apply_transforms(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
-        """Apply registered @transform functions in order."""
-        for transform_func in table._transforms:
-            expr = transform_func(expr)
-        return expr
 
     def _apply_aggregates(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
         """Compile aggregate() definitions to GROUP BY with FILTER.
@@ -216,29 +204,3 @@ class IbisCompiler:
             agg_exprs[name] = agg_col
 
         return expr.group_by(group_keys).agg(**agg_exprs)
-
-    def _apply_custom_features(
-        self, expr: ir.Table, table: core.FeatureTable
-    ) -> ir.Table:
-        """Apply @feature decorator functions as column expressions."""
-        for custom_def in table._custom_features:
-            name: str = custom_def["name"]
-            func = custom_def["func"]
-            col_expr = func(expr)
-            expr = expr.mutate(**{name: col_expr})
-        return expr
-
-    def _to_sql(self, expr: ir.Table) -> str:
-        """Render an Ibis expression to DuckDB-dialect SQL."""
-        return ibis.to_sql(expr, dialect="duckdb")
-
-    def _extract_source_tables(self, table: core.FeatureTable) -> list[str]:
-        """Extract the names of all source tables for dependency tracking."""
-        import strata.core as core_module
-
-        source_tables: list[str] = []
-        if isinstance(table.source, core_module.FeatureTable):
-            source_tables.append(table.source.name)
-        else:
-            source_tables.append(table.source_name)
-        return source_tables

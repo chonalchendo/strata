@@ -7,12 +7,6 @@ from typing import Literal
 import strata.backends.base as base
 
 
-class LocalStorage(base.BaseStorage):
-    kind: Literal["local"] = "local"
-    path: str
-    catalog: str
-
-
 class LocalSourceConfig(base.BaseSourceConfig):
     """Local file source configuration.
 

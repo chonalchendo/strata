@@ -235,24 +235,6 @@ class BaseBackend(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         raise NotImplementedError("Backend.table_exists() not implemented")
 
 
-# --- Deprecated: will be removed when DuckDBBackend absorbs subclasses ---
-
-
-class BaseStorage(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
-    """Storage backend interface (deprecated -- use BaseBackend)."""
-
-    pass
-
-
-class BaseCompute(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
-    """Compute backend interface (deprecated -- use BaseBackend)."""
-
-    pass
-
-
-# --- Source configs remain ---
-
-
 class BaseSourceConfig(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     """Base class for source connection configurations.
 

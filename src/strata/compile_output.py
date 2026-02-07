@@ -15,6 +15,7 @@ from pathlib import Path
 
 import strata.compiler as compiler_mod
 import strata.discovery as discovery
+import strata.registry as reg_types
 
 
 def write_compile_output(
@@ -48,6 +49,9 @@ def write_compile_output(
     table_dir = output_dir / compiled.table_name
     table_dir.mkdir(parents=True, exist_ok=True)
 
+    # Serialize spec once for reuse
+    spec = discovery.serialize_to_spec(disc.obj, disc.kind)
+
     # Write query.sql
     query_path = table_dir / "query.sql"
     query_path.write_text(
@@ -62,7 +66,6 @@ def write_compile_output(
     ibis_path.write_text(str(compiled.ibis_expr))
 
     # Write lineage.json
-    spec = discovery.serialize_to_spec(disc.obj, disc.kind)
     lineage = {
         "table": compiled.table_name,
         "source_file": disc.source_file,
@@ -76,7 +79,8 @@ def write_compile_output(
     lineage_path.write_text(json.dumps(lineage, indent=2))
 
     # Write build_context.json
-    table_spec_hash = _compute_table_spec_hash(disc)
+    spec_json = discovery.spec_to_json(spec)
+    table_spec_hash = reg_types.compute_spec_hash(spec_json)[:8]
     build_context = {
         "compiled_at": datetime.now(tz=timezone.utc).isoformat(),
         "strata_version": strata_version,
@@ -89,12 +93,3 @@ def write_compile_output(
     context_path.write_text(json.dumps(build_context, indent=2))
 
     return table_dir
-
-
-def _compute_table_spec_hash(disc: discovery.DiscoveredObject) -> str:
-    """Compute a spec hash for the table for change detection."""
-    import strata.registry as reg_types
-
-    spec = discovery.serialize_to_spec(disc.obj, disc.kind)
-    spec_json = discovery.spec_to_json(spec)
-    return reg_types.compute_spec_hash(spec_json)[:8]

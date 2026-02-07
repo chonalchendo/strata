@@ -197,8 +197,6 @@ class ParquetFormat(BaseFormat):
         timestamp: str | None = None,
     ) -> pa.Table:
         """Read a Parquet file or directory of Parquet files."""
-        if path.is_dir():
-            return pq.read_table(str(path))
         return pq.read_table(str(path))
 
     @override
