@@ -8,9 +8,14 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import pyarrow as pa
 import pydantic as pdt
 
+import strata.formats as formats
+
 if TYPE_CHECKING:
+    import ibis
+
     import strata.registry as registry
 
 
@@ -109,22 +114,143 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         raise NotImplementedError("Registry.get_changelog() not implemented")
 
 
-class BaseStorage(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
-    """Storage backend interface.
+class BaseBackend(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+    """Backend interface -- single abstraction per deployment target.
 
-    Storage backends handle reading and writing feature data (Delta tables).
+    Replaces the old BaseStorage + BaseCompute split. In practice, storage
+    and compute are always coupled per deployment target (DuckDB reads parquet
+    directly, Databricks reads Delta natively). The backend wraps an Ibis
+    connection (compute) and delegates output I/O to a format (storage).
+
+    Ibis IS the compute abstraction. The compiler builds backend-agnostic
+    Ibis expressions. The backend handles: connection, source registration,
+    execution, and output I/O via format delegation.
     """
+
+    kind: str
+    format: formats.FormatKind = formats.ParquetFormat()
+
+    def connect(self) -> "ibis.BaseBackend":
+        """Create and return an Ibis backend connection.
+
+        Returns:
+            Connected Ibis backend instance.
+        """
+        raise NotImplementedError("Backend.connect() not implemented")
+
+    def register_source(
+        self,
+        conn: "ibis.BaseBackend",
+        name: str,
+        config: BaseSourceConfig,
+    ) -> None:
+        """Register an external data source with the Ibis connection.
+
+        Args:
+            conn: Active Ibis connection.
+            name: Table name to register as.
+            config: Source configuration with connection details.
+        """
+        raise NotImplementedError("Backend.register_source() not implemented")
+
+    def execute(self, conn: "ibis.BaseBackend", expr: "ibis.Expr") -> pa.Table:
+        """Execute an Ibis expression and return results.
+
+        Args:
+            conn: Active Ibis connection.
+            expr: Ibis expression tree to execute.
+
+        Returns:
+            PyArrow Table with query results.
+        """
+        raise NotImplementedError("Backend.execute() not implemented")
+
+    def write_table(
+        self,
+        table_name: str,
+        data: pa.Table,
+        mode: str = "append",
+        merge_keys: list[str] | None = None,
+    ) -> None:
+        """Write data to a named table via format delegation.
+
+        Args:
+            table_name: Logical table name.
+            data: PyArrow Table to write.
+            mode: Write mode -- "append" or "merge".
+            merge_keys: Keys for merge upsert.
+        """
+        raise NotImplementedError("Backend.write_table() not implemented")
+
+    def read_table(
+        self,
+        table_name: str,
+        version: int | None = None,
+    ) -> pa.Table:
+        """Read data from a named table via format delegation.
+
+        Args:
+            table_name: Logical table name.
+            version: Optional version for time-travel reads.
+
+        Returns:
+            PyArrow Table with the data.
+        """
+        raise NotImplementedError("Backend.read_table() not implemented")
+
+    def drop_table(self, table_name: str) -> None:
+        """Remove a table and its data.
+
+        Args:
+            table_name: Logical table name to drop.
+        """
+        raise NotImplementedError("Backend.drop_table() not implemented")
+
+    def delete_range(
+        self,
+        table_name: str,
+        partition_col: str,
+        start: str,
+        end: str,
+    ) -> None:
+        """Delete data within a partition range.
+
+        Args:
+            table_name: Logical table name.
+            partition_col: Column to filter on.
+            start: Range start (inclusive).
+            end: Range end (exclusive).
+        """
+        raise NotImplementedError("Backend.delete_range() not implemented")
+
+    def table_exists(self, table_name: str) -> bool:
+        """Check if a table exists.
+
+        Args:
+            table_name: Logical table name.
+
+        Returns:
+            True if table exists.
+        """
+        raise NotImplementedError("Backend.table_exists() not implemented")
+
+
+# --- Deprecated: will be removed when DuckDBBackend absorbs subclasses ---
+
+
+class BaseStorage(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+    """Storage backend interface (deprecated -- use BaseBackend)."""
 
     pass
 
 
 class BaseCompute(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
-    """Compute backend interface.
-
-    Compute backends execute feature transformations and queries.
-    """
+    """Compute backend interface (deprecated -- use BaseBackend)."""
 
     pass
+
+
+# --- Source configs remain ---
 
 
 class BaseSourceConfig(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
