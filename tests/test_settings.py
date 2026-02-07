@@ -22,12 +22,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: test_catalog
-    compute:
-      kind: duckdb
 """
 
 
@@ -51,23 +49,19 @@ environments:
     registry:
       kind: sqlite
       path: .strata/dev/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/dev/data
       catalog: features_dev
-    compute:
-      kind: duckdb
   prd:
     catalog: test_prd
     registry:
       kind: sqlite
       path: .strata/prd/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/prd/data
       catalog: features_prd
-    compute:
-      kind: duckdb
 """
 
 
@@ -123,12 +117,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: test
-    compute:
-      kind: duckdb
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_str)
@@ -256,12 +248,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: test_catalog
-    compute:
-      kind: duckdb
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_str)
@@ -286,12 +276,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: test_catalog
-    compute:
-      kind: duckdb
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_str)

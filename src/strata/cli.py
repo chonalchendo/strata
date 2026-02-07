@@ -83,8 +83,7 @@ def env(
             console.print(f"[bold]Environment:[/bold] {name}")
             console.print(f"  Catalog: {env_settings.catalog or '(not set)'}")
             console.print(f"  Registry: {env_settings.registry.kind}")
-            console.print(f"  Storage: {env_settings.storage.kind}")
-            console.print(f"  Compute: {env_settings.compute.kind}")
+            console.print(f"  Backend: {env_settings.backend.kind}")
         else:
             # Show current/default environment
             console.print(

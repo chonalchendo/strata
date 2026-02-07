@@ -14,12 +14,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/dev/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/dev/lakehouse
       catalog: air_quality_dev
-    compute:
-      kind: duckdb
       extensions: [parquet, json]
 
   stg:
@@ -27,12 +25,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/stg/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/stg/lakehouse
       catalog: air_quality_stg
-    compute:
-      kind: duckdb
       extensions: [parquet, json]
 
   prd:
@@ -40,10 +36,8 @@ environments:
     registry:
       kind: sqlite
       path: .strata/prd/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/prd/lakehouse
       catalog: air_quality_prd
-    compute:
-      kind: duckdb
       extensions: [parquet, json]

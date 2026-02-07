@@ -98,14 +98,14 @@ PathsSettings = Annotated[
 class EnvironmentSettings(Settings):
     """Configuration for a single environment (dev, stg, prd).
 
-    Each environment specifies its own registry, storage, and compute backends.
+    Each environment specifies its own registry and backend.
+    The backend handles both compute (Ibis connection) and storage (format I/O).
     The catalog field enables environment-specific catalog injection for sources.
     """
 
     catalog: str | None = None
     registry: backends.RegistryKind = pdt.Field(..., discriminator="kind")
-    storage: backends.StorageKind = pdt.Field(..., discriminator="kind")
-    compute: backends.ComputeKind = pdt.Field(..., discriminator="kind")
+    backend: backends.BackendKind = pdt.Field(..., discriminator="kind")
 
 
 class StrataSettings(Settings):
@@ -127,12 +127,10 @@ class StrataSettings(Settings):
             registry:
               kind: sqlite
               path: .strata/registry.db
-            storage:
-              kind: local
+            backend:
+              kind: duckdb
               path: .strata/data
               catalog: features
-            compute:
-              kind: duckdb
     """
 
     name: str

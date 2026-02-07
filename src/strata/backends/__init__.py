@@ -1,3 +1,3 @@
-from .factory import ComputeKind, RegistryKind, StorageKind
+from .factory import BackendKind, RegistryKind
 
-__all__ = ["ComputeKind", "RegistryKind", "StorageKind"]
+__all__ = ["BackendKind", "RegistryKind"]

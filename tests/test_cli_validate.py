@@ -40,12 +40,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: features
-    compute:
-      kind: duckdb
 """
     )
 
@@ -106,12 +104,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: features
-    compute:
-      kind: duckdb
 """
     )
 
@@ -200,12 +196,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: features
-    compute:
-      kind: duckdb
 """
         )
 
@@ -254,12 +248,10 @@ environments:
     registry:
       kind: sqlite
       path: .strata/registry.db
-    storage:
-      kind: local
+    backend:
+      kind: duckdb
       path: .strata/data
       catalog: features
-    compute:
-      kind: duckdb
 """
         )
 
