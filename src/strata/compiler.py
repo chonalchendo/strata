@@ -63,6 +63,7 @@ class IbisCompiler:
         self,
         table: core.FeatureTable,
         source_schema: dict[str, str] | None = None,
+        date_range: tuple[object, object] | None = None,
     ) -> CompiledQuery:
         """Compile a FeatureTable into a CompiledQuery.
 
@@ -73,12 +74,18 @@ class IbisCompiler:
                 the compiler uses the real schema instead of inferring one.
                 Keys are column names, values are strata dtype strings
                 (e.g. ``{"user_id": "string", "amount": "float64"}``).
+            date_range: Optional (start, end) tuple for filtering source data
+                by the table's timestamp_field. Applied before transforms and
+                aggregation so that the timestamp column is still available.
+                Start is inclusive, end is exclusive.
 
         Returns:
             CompiledQuery with SQL, Ibis expression, table name,
             and list of source table names.
         """
-        expr = self._build_expression(table, source_schema=source_schema)
+        expr = self._build_expression(
+            table, source_schema=source_schema, date_range=date_range
+        )
         sql = self._to_sql(expr)
         source_tables = self._extract_source_tables(table)
 
@@ -93,12 +100,19 @@ class IbisCompiler:
         self,
         table: core.FeatureTable,
         source_schema: dict[str, str] | None = None,
+        date_range: tuple[object, object] | None = None,
     ) -> ir.Table:
         """Build an Ibis expression tree from a FeatureTable.
 
-        Execution order: source -> transforms -> aggregates/custom_features
+        Execution order: source -> date_range_filter -> transforms -> aggregates/custom_features
         """
         expr = self._create_source_expression(table, source_schema=source_schema)
+
+        # Apply date range filter before transforms (timestamp col still available)
+        if date_range is not None:
+            start, end = date_range
+            ts_col = expr[table.timestamp_field]
+            expr = expr.filter((ts_col >= start) & (ts_col < end))
 
         # Apply transforms first (filter/reshape the source)
         expr = self._apply_transforms(expr, table)
@@ -168,9 +182,7 @@ class IbisCompiler:
             expr = transform_func(expr)
         return expr
 
-    def _apply_aggregates(
-        self, expr: ir.Table, table: core.FeatureTable
-    ) -> ir.Table:
+    def _apply_aggregates(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
         """Compile aggregate() definitions to GROUP BY with FILTER.
 
         Uses conditional aggregation (FILTER WHERE) to support

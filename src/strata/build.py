@@ -26,6 +26,8 @@ import strata.compiler as compiler_mod
 import strata.dag as dag_mod
 
 if TYPE_CHECKING:
+    import ibis
+
     import strata.core as core
 
 logger = logging.getLogger(__name__)
@@ -196,7 +198,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     def _build_table(
         self,
         table: core.FeatureTable,
-        conn: object,
+        conn: ibis.BaseBackend,
         compiler: compiler_mod.IbisCompiler,
         full_refresh: bool,
         start: datetime | None,
@@ -221,7 +223,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
         try:
             # Register the source if it's an external source (not a FeatureTable)
-            if not isinstance(table.source, core.FeatureTable):
+            if not isinstance(table.source, (core.FeatureTable, core.SourceTable)):
                 self.backend.register_source(
                     conn=conn,
                     name=table.source_name,
@@ -229,16 +231,13 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                 )
 
             # Compile the table to an Ibis expression
-            compiled = compiler.compile_table(table)
-
-            # Apply date range filter if start/end are provided
-            expr = compiled.ibis_expr
-            if start is not None and end is not None:
-                ts_col = expr[table.timestamp_field]
-                expr = expr.filter((ts_col >= start) & (ts_col < end))
+            # Date range filter is applied at the source level (before
+            # aggregation) so the timestamp column is still available.
+            date_range = (start, end) if start is not None and end is not None else None
+            compiled = compiler.compile_table(table, date_range=date_range)
 
             # Execute the expression via the backend
-            data = self.backend.execute(conn, expr)
+            data = self.backend.execute(conn, compiled.ibis_expr)
 
             # Handle full_refresh: drop table first, then write with overwrite
             if full_refresh:
