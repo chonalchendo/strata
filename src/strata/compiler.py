@@ -59,17 +59,26 @@ class IbisCompiler:
     renders them to SQL using the DuckDB dialect.
     """
 
-    def compile_table(self, table: core.FeatureTable) -> CompiledQuery:
+    def compile_table(
+        self,
+        table: core.FeatureTable,
+        source_schema: dict[str, str] | None = None,
+    ) -> CompiledQuery:
         """Compile a FeatureTable into a CompiledQuery.
 
         Args:
             table: The FeatureTable to compile.
+            source_schema: Optional column-name-to-dtype mapping from the
+                actual data source. When provided (e.g. by the build engine),
+                the compiler uses the real schema instead of inferring one.
+                Keys are column names, values are strata dtype strings
+                (e.g. ``{"user_id": "string", "amount": "float64"}``).
 
         Returns:
             CompiledQuery with SQL, Ibis expression, table name,
             and list of source table names.
         """
-        expr = self._build_expression(table)
+        expr = self._build_expression(table, source_schema=source_schema)
         sql = self._to_sql(expr)
         source_tables = self._extract_source_tables(table)
 
@@ -80,12 +89,16 @@ class IbisCompiler:
             source_tables=source_tables,
         )
 
-    def _build_expression(self, table: core.FeatureTable) -> ir.Table:
+    def _build_expression(
+        self,
+        table: core.FeatureTable,
+        source_schema: dict[str, str] | None = None,
+    ) -> ir.Table:
         """Build an Ibis expression tree from a FeatureTable.
 
         Execution order: source -> transforms -> aggregates/custom_features
         """
-        expr = self._create_source_expression(table)
+        expr = self._create_source_expression(table, source_schema=source_schema)
 
         # Apply transforms first (filter/reshape the source)
         expr = self._apply_transforms(expr, table)
@@ -99,16 +112,26 @@ class IbisCompiler:
 
         return expr
 
-    def _create_source_expression(self, table: core.FeatureTable) -> ir.Table:
+    def _create_source_expression(
+        self,
+        table: core.FeatureTable,
+        source_schema: dict[str, str] | None = None,
+    ) -> ir.Table:
         """Create the base Ibis table expression from the source.
 
-        Infers a schema from the FeatureTable definition by collecting
-        referenced columns from aggregates, custom features, entity join
-        keys, and the timestamp field.
+        When *source_schema* is provided the compiler uses the real column
+        types.  Otherwise it infers a minimal schema from the FeatureTable
+        definition (join keys, timestamp, aggregate columns).
         """
         import strata.core as core_module
 
-        schema = self._infer_schema(table)
+        if source_schema is not None:
+            schema = {
+                col: _DTYPE_MAP.get(dtype, dt.string)
+                for col, dtype in source_schema.items()
+            }
+        else:
+            schema = self._infer_schema(table)
 
         if isinstance(table.source, core_module.FeatureTable):
             return ibis.table(schema=schema, name=table.source.name)
