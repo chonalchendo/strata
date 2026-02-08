@@ -10,6 +10,7 @@ Future: IbisConstraintChecker (pushdown to Databricks/BigQuery).
 from __future__ import annotations
 
 import abc
+import random
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -356,16 +357,28 @@ def _collect_fields(table: core.FeatureTable) -> list[tuple[str, core.Field]]:
     return result
 
 
-def _has_constraints(field: core.Field) -> bool:
-    """Check if a Field has any built-in constraints defined."""
-    return any([
-        field.ge is not None,
-        field.le is not None,
-        field.not_null,
-        field.max_null_pct is not None,
-        field.allowed_values is not None,
-        field.pattern is not None,
-    ])
+def _run_custom_validator(
+    field_name: str,
+    column: Any,
+    validator_fn: Callable,
+    rows_checked: int,
+) -> ConstraintResult:
+    """Run a custom validator callable and return a ConstraintResult."""
+    try:
+        custom_passed = validator_fn(column)
+    except Exception:
+        custom_passed = False
+
+    return ConstraintResult(
+        field_name=field_name,
+        constraint="custom",
+        passed=custom_passed,
+        severity="error",
+        expected="custom check",
+        actual="passed" if custom_passed else "failed",
+        rows_checked=rows_checked,
+        rows_failed=0 if custom_passed else rows_checked,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -408,9 +421,6 @@ def validate_table(
     if effective_sample_pct is not None and 1 <= effective_sample_pct < 100:
         n_rows = len(data)
         sample_size = max(1, int(n_rows * effective_sample_pct / 100))
-        # Use random indices for sampling
-        import random
-
         indices = random.sample(range(n_rows), sample_size)
         data = data.take(indices)
 
@@ -465,24 +475,10 @@ def validate_table(
 
         # Custom validator for this field
         if field_name in custom_validators:
-            validator_fn = custom_validators[field_name]
-            try:
-                custom_passed = validator_fn(column)
-            except Exception:
-                custom_passed = False
-
-            constraints.append(
-                ConstraintResult(
-                    field_name=field_name,
-                    constraint="custom",
-                    passed=custom_passed,
-                    severity="error",  # Custom validators always error severity
-                    expected="custom check",
-                    actual="passed" if custom_passed else "failed",
-                    rows_checked=rows_checked,
-                    rows_failed=0 if custom_passed else rows_checked,
-                )
+            cr = _run_custom_validator(
+                field_name, column, custom_validators[field_name], rows_checked
             )
+            constraints.append(cr)
 
         # Determine field-level pass/fail (only error-severity matter)
         error_constraints_passed = all(
@@ -512,31 +508,16 @@ def validate_table(
     field_names_processed = {fr.field_name for fr in field_results}
     for field_name, validator_fn in custom_validators.items():
         if field_name not in field_names_processed and field_name in data.column_names:
-            column = data.column(field_name)
-            try:
-                custom_passed = validator_fn(column)
-            except Exception:
-                custom_passed = False
-
-            cr = ConstraintResult(
-                field_name=field_name,
-                constraint="custom",
-                passed=custom_passed,
-                severity="error",
-                expected="custom check",
-                actual="passed" if custom_passed else "failed",
-                rows_checked=rows_checked,
-                rows_failed=0 if custom_passed else rows_checked,
+            cr = _run_custom_validator(
+                field_name, data.column(field_name), validator_fn, rows_checked
             )
-
-            if not custom_passed:
+            if not cr.passed:
                 all_error_passed = False
-
             field_results.append(
                 FieldResult(
                     field_name=field_name,
                     constraints=[cr],
-                    passed=custom_passed,
+                    passed=cr.passed,
                 )
             )
 
