@@ -18,11 +18,6 @@ from typing import Any
 import strata.core as core
 
 
-# ---------------------------------------------------------------------------
-# Result types
-# ---------------------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class ConstraintResult:
     """Result of a single constraint check."""
@@ -57,17 +52,8 @@ class TableValidationResult:
     has_warnings: bool  # True if any warn-severity constraints failed
 
 
-# ---------------------------------------------------------------------------
-# BaseConstraintChecker ABC
-# ---------------------------------------------------------------------------
-
-
 class BaseConstraintChecker(abc.ABC):
     """Interface for constraint checking implementations.
-
-    Implementations receive a column of data and check a single constraint.
-    The ABC defines 6 built-in constraint types that map to simple aggregate
-    operations (min, max, null_count, distinct, regex match).
 
     V1: PyArrowConstraintChecker -- in-memory via PyArrow compute.
     Future: IbisConstraintChecker -- pushes queries to backend engine.
@@ -133,11 +119,6 @@ class BaseConstraintChecker(abc.ABC):
     ) -> ConstraintResult: ...
 
 
-# ---------------------------------------------------------------------------
-# PyArrowConstraintChecker
-# ---------------------------------------------------------------------------
-
-
 class PyArrowConstraintChecker(BaseConstraintChecker):
     """Constraint checker using PyArrow compute for in-memory validation."""
 
@@ -151,7 +132,6 @@ class PyArrowConstraintChecker(BaseConstraintChecker):
     ) -> ConstraintResult:
         import pyarrow.compute as pc
 
-        # Drop nulls for numeric comparison
         valid = pc.drop_null(column)
         if len(valid) == 0:
             return ConstraintResult(
@@ -340,23 +320,6 @@ class PyArrowConstraintChecker(BaseConstraintChecker):
         )
 
 
-# ---------------------------------------------------------------------------
-# Field extraction
-# ---------------------------------------------------------------------------
-
-
-def _collect_fields(table: core.FeatureTable) -> list[tuple[str, core.Field]]:
-    """Extract named Field definitions from a FeatureTable.
-
-    Fields come from features registered via aggregate() or @feature decorator.
-    """
-    result: list[tuple[str, core.Field]] = []
-    for feature in table.features_list():
-        if feature.field is not None:
-            result.append((feature.name, feature.field))
-    return result
-
-
 def _run_custom_validator(
     field_name: str,
     column: Any,
@@ -379,11 +342,6 @@ def _run_custom_validator(
         rows_checked=rows_checked,
         rows_failed=0 if custom_passed else rows_checked,
     )
-
-
-# ---------------------------------------------------------------------------
-# Main validation function
-# ---------------------------------------------------------------------------
 
 
 def validate_table(
@@ -426,74 +384,75 @@ def validate_table(
 
     rows_checked = len(data)
 
-    # Collect fields from FeatureTable
-    fields = _collect_fields(table)
+    # Collect fields from FeatureTable features
+    fields = [
+        (f.name, f.field) for f in table.features_list() if f.field is not None
+    ]
 
     field_results: list[FieldResult] = []
     all_error_passed = True
     any_warn_failed = False
 
     for field_name, field in fields:
-        constraints: list[ConstraintResult] = []
-
-        # Check if column exists in data
         if field_name not in data.column_names:
-            # Skip fields not present in data
             continue
 
+        constraints: list[ConstraintResult] = []
         column = data.column(field_name)
         severity = field.severity
 
-        # Built-in constraints
         if field.ge is not None:
-            cr = checker.check_ge(column, field.ge, field_name, severity, rows_checked)
-            constraints.append(cr)
+            constraints.append(
+                checker.check_ge(column, field.ge, field_name, severity, rows_checked)
+            )
 
         if field.le is not None:
-            cr = checker.check_le(column, field.le, field_name, severity, rows_checked)
-            constraints.append(cr)
+            constraints.append(
+                checker.check_le(column, field.le, field_name, severity, rows_checked)
+            )
 
         if field.not_null:
-            cr = checker.check_not_null(column, field_name, severity, rows_checked)
-            constraints.append(cr)
+            constraints.append(
+                checker.check_not_null(column, field_name, severity, rows_checked)
+            )
 
         if field.max_null_pct is not None:
-            cr = checker.check_max_null_pct(
-                column, field.max_null_pct, field_name, severity, rows_checked
+            constraints.append(
+                checker.check_max_null_pct(
+                    column, field.max_null_pct, field_name, severity, rows_checked
+                )
             )
-            constraints.append(cr)
 
         if field.allowed_values is not None:
-            cr = checker.check_allowed_values(
-                column, field.allowed_values, field_name, severity, rows_checked
+            constraints.append(
+                checker.check_allowed_values(
+                    column, field.allowed_values, field_name, severity, rows_checked
+                )
             )
-            constraints.append(cr)
 
         if field.pattern is not None:
-            cr = checker.check_pattern(column, field.pattern, field_name, severity, rows_checked)
-            constraints.append(cr)
-
-        # Custom validator for this field
-        if field_name in custom_validators:
-            cr = _run_custom_validator(
-                field_name, column, custom_validators[field_name], rows_checked
+            constraints.append(
+                checker.check_pattern(
+                    column, field.pattern, field_name, severity, rows_checked
+                )
             )
-            constraints.append(cr)
+
+        if field_name in custom_validators:
+            constraints.append(
+                _run_custom_validator(
+                    field_name, column, custom_validators[field_name], rows_checked
+                )
+            )
 
         # Determine field-level pass/fail (only error-severity matter)
-        error_constraints_passed = all(
+        field_passed = all(
             cr.passed for cr in constraints if cr.severity == "error"
         )
-        field_passed = error_constraints_passed
 
         if not field_passed:
             all_error_passed = False
 
-        # Track warnings
-        warn_constraints_failed = any(
-            not cr.passed for cr in constraints if cr.severity == "warn"
-        )
-        if warn_constraints_failed:
+        if any(not cr.passed for cr in constraints if cr.severity == "warn"):
             any_warn_failed = True
 
         field_results.append(

@@ -6,6 +6,7 @@ Define features in Python, run locally, scale to Databricks.
 from __future__ import annotations
 
 import getpass
+import json as json_lib
 import logging
 import socket
 import time
@@ -46,8 +47,6 @@ app = cyclopts.App(
 def _handle_error(e: errors.StrataError, *, json_mode: bool = False) -> None:
     """Display a structured error message."""
     if json_mode:
-        import json as json_lib
-
         console.print(json_lib.dumps(e.to_dict(), indent=2))
     else:
         console.print(f"[bold red]Error:[/bold red] {e.context}\n")
@@ -70,6 +69,18 @@ def _get_registry(strata_settings: settings.StrataSettings) -> backends.Registry
 def _get_applied_by() -> str:
     """Get user@hostname string for changelog."""
     return f"{getpass.getuser()}@{socket.gethostname()}"
+
+
+def _discover(
+    strata_settings: settings.StrataSettings,
+    *,
+    quiet: bool = False,
+) -> list:
+    """Discover definitions, showing a spinner unless quiet mode."""
+    if quiet:
+        return discovery.discover_definitions(strata_settings)
+    with console.status("[bold]Discovering definitions...[/bold]"):
+        return discovery.discover_definitions(strata_settings)
 
 
 @app.command
@@ -159,8 +170,7 @@ def preview(
         console.print()
 
         # Discover definitions
-        with console.status("[bold]Discovering definitions...[/bold]"):
-            discovered = discovery.discover_definitions(strata_settings)
+        discovered = _discover(strata_settings)
 
         # Get registry and initialize
         reg = _get_registry(strata_settings)
@@ -267,8 +277,6 @@ def _render_issue(issue: validation.ValidationIssue, color: str, label: str) -> 
 
 def _render_validate_json(result: validation.ValidationResult) -> None:
     """Output validation results as machine-readable JSON."""
-    import json as json_lib
-
     output_data = {
         "passed": not result.has_errors,
         "has_warnings": result.has_warnings,
@@ -324,8 +332,7 @@ def up(
 
         # Discovery phase with timing telemetry
         t0 = time.perf_counter()
-        with console.status("[bold]Discovering definitions...[/bold]"):
-            discovered = discovery.discover_definitions(strata_settings)
+        discovered = _discover(strata_settings)
         t_discovery = time.perf_counter() - t0
         logger.debug(
             f"Discovery: {t_discovery * 1000:.1f}ms ({len(discovered)} objects)"
@@ -507,11 +514,7 @@ def build(
             console.print()
 
         # Discover feature tables
-        if not json_output:
-            with console.status("[bold]Discovering definitions...[/bold]"):
-                discovered = discovery.discover_definitions(strata_settings)
-        else:
-            discovered = discovery.discover_definitions(strata_settings)
+        discovered = _discover(strata_settings, quiet=json_output)
         feature_tables = [
             d.obj for d in discovered if d.kind == "feature_table"
         ]
@@ -659,8 +662,6 @@ def _render_build_json(
     skip_quality: bool = False,
 ) -> None:
     """Output build results as machine-readable JSON."""
-    import json as json_lib
-
     tables = []
     for table_result in result.table_results:
         tables.append({
@@ -718,8 +719,7 @@ def compile(
         console.print()
 
         # Discover definitions
-        with console.status("[bold]Discovering definitions...[/bold]"):
-            discovered = discovery.discover_definitions(strata_settings)
+        discovered = _discover(strata_settings)
 
         # Filter to feature tables (only things we compile)
         feature_tables = [d for d in discovered if d.kind == "feature_table"]
@@ -953,8 +953,6 @@ def ls(
 
         if not objects:
             if json_output:
-                import json as json_lib
-
                 console.print(json_lib.dumps([], indent=2))
             elif kind:
                 console.print(f"[dim]No {kind} objects registered[/dim]")
@@ -963,8 +961,6 @@ def ls(
             return
 
         if json_output:
-            import json as json_lib
-
             output_data = [
                 {
                     "kind": obj.kind,
@@ -1077,8 +1073,6 @@ def _load_quality_from_registry(
     reg: backends.RegistryKind,
 ) -> "quality_mod.TableValidationResult | None":
     """Load latest quality result from registry, returning None if absent."""
-    import json as json_lib
-
     import strata.quality as quality_mod
 
     records = reg.get_quality_results(table_name, limit=1)
@@ -1134,7 +1128,6 @@ def _run_live_quality(
     reg: backends.RegistryKind,
 ) -> "quality_mod.TableValidationResult | None":
     """Run live validation against current built data."""
-    import json as json_lib
     from dataclasses import asdict
     from datetime import datetime, timezone
 
@@ -1142,7 +1135,7 @@ def _run_live_quality(
     import strata.registry as reg_types
 
     # Discover definitions to find the target table
-    discovered = discovery.discover_definitions(strata_settings)
+    discovered = _discover(strata_settings, quiet=True)
     feature_tables = [d for d in discovered if d.kind == "feature_table"]
 
     target = None
@@ -1277,8 +1270,6 @@ def _render_quality_json(
     result: "quality_mod.TableValidationResult",
 ) -> None:
     """Output quality results as machine-readable JSON."""
-    import json as json_lib
-
     output_data = {
         "table": result.table_name,
         "passed": result.passed,
@@ -1346,11 +1337,7 @@ def freshness(
         reg.initialize()
 
         # Discover feature tables
-        if not json_output:
-            with console.status("[bold]Discovering definitions...[/bold]"):
-                discovered = discovery.discover_definitions(strata_settings)
-        else:
-            discovered = discovery.discover_definitions(strata_settings)
+        discovered = _discover(strata_settings, quiet=json_output)
         feature_tables = [d.obj for d in discovered if d.kind == "feature_table"]
 
         if not feature_tables:
@@ -1485,8 +1472,6 @@ def _render_freshness_json(
     result: "freshness_mod.FreshnessResult",
 ) -> None:
     """Output freshness results as machine-readable JSON."""
-    import json as json_lib
-
     output_data = {
         "has_stale": result.has_stale,
         "has_unknown": result.has_unknown,

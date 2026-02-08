@@ -432,31 +432,13 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         table_name: str,
         validation_result: Any,
     ) -> None:
-        """Persist a quality validation result to the registry.
-
-        Args:
-            table_name: Name of the validated table.
-            validation_result: TableValidationResult from quality module.
-        """
+        """Persist a quality validation result to the registry."""
         if self.registry is None:
             return
 
-        import strata.registry as reg_types
+        from dataclasses import asdict
 
-        # Serialize field results to JSON
-        results_data = []
-        for fr in validation_result.field_results:
-            for cr in fr.constraints:
-                results_data.append({
-                    "field_name": cr.field_name,
-                    "constraint": cr.constraint,
-                    "passed": cr.passed,
-                    "severity": cr.severity,
-                    "expected": cr.expected,
-                    "actual": cr.actual,
-                    "rows_checked": cr.rows_checked,
-                    "rows_failed": cr.rows_failed,
-                })
+        import strata.registry as reg_types
 
         record = reg_types.QualityResultRecord(
             id=None,
@@ -465,7 +447,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             passed=validation_result.passed,
             has_warnings=validation_result.has_warnings,
             rows_checked=validation_result.rows_checked,
-            results_json=json.dumps(results_data),
+            results_json=json.dumps(asdict(validation_result), default=str),
         )
 
         try:
@@ -486,16 +468,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         data: Any,
         timestamp_field: str,
     ) -> None:
-        """Persist a build record to the registry.
-
-        Args:
-            table_name: Name of the built table.
-            status: Build status ("success", "failed", "skipped").
-            row_count: Number of rows in built data.
-            duration_ms: Build duration in milliseconds.
-            data: PyArrow Table with built data (for timestamp extraction).
-            timestamp_field: Name of the timestamp column.
-        """
+        """Persist a build record to the registry."""
         if self.registry is None:
             return
 
