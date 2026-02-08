@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pyarrow as pa
 import pydantic as pdt
@@ -663,3 +663,341 @@ class TestBuildFailureHandling:
         assert result.failed_count == 1
         assert result.table_results[0].error is not None
         assert "Disk full" in result.table_results[0].error
+
+
+# ---------------------------------------------------------------------------
+# Quality validation helpers
+# ---------------------------------------------------------------------------
+
+
+def _make_validation_result(
+    *, table_name="test_table", passed=True, has_warnings=False, field_results=None
+):
+    """Create a mock TableValidationResult."""
+    import strata.quality as quality
+
+    if field_results is None:
+        field_results = []
+    return quality.TableValidationResult(
+        table_name=table_name,
+        field_results=field_results,
+        rows_checked=10,
+        passed=passed,
+        has_warnings=has_warnings,
+    )
+
+
+def _make_failing_validation(table_name="test_table"):
+    """Create a validation result with an error-severity failure."""
+    import strata.quality as quality
+
+    cr = quality.ConstraintResult(
+        field_name="amount",
+        constraint="ge",
+        passed=False,
+        severity="error",
+        expected=">= 0",
+        actual="min=-5.0",
+        rows_checked=10,
+        rows_failed=2,
+    )
+    fr = quality.FieldResult(
+        field_name="amount",
+        constraints=[cr],
+        passed=False,
+    )
+    return quality.TableValidationResult(
+        table_name=table_name,
+        field_results=[fr],
+        rows_checked=10,
+        passed=False,
+        has_warnings=False,
+    )
+
+
+def _make_warning_validation(table_name="test_table"):
+    """Create a validation result that passes but has warnings."""
+    import strata.quality as quality
+
+    cr = quality.ConstraintResult(
+        field_name="score",
+        constraint="le",
+        passed=False,
+        severity="warn",
+        expected="<= 100",
+        actual="max=150",
+        rows_checked=10,
+        rows_failed=1,
+    )
+    fr = quality.FieldResult(
+        field_name="score",
+        constraints=[cr],
+        passed=True,  # warn-severity doesn't fail the field
+    )
+    return quality.TableValidationResult(
+        table_name=table_name,
+        field_results=[fr],
+        rows_checked=10,
+        passed=True,
+        has_warnings=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Build + validation integration
+# ---------------------------------------------------------------------------
+
+
+class TestBuildWithValidation:
+    """Tests for validate-before-write integration in BuildEngine.
+
+    These tests mock the compiler to avoid the pre-existing
+    decimal.ConversionSyntax issue in Python 3.14+.
+    """
+
+    def _mock_compiler(self):
+        """Create a mock IbisCompiler that returns a mock compiled result."""
+        mock_compiled = MagicMock()
+        mock_compiled.ibis_expr = MagicMock()
+        mock_ibis_compiler = MagicMock()
+        mock_ibis_compiler.compile_table.return_value = mock_compiled
+        return mock_ibis_compiler
+
+    def test_build_with_validation_passing(
+        self, mock_backend, user_entity, transaction_source
+    ):
+        """Data passes validation, table is written successfully."""
+        engine = build_mod.BuildEngine.model_construct(backend=mock_backend)
+
+        table = core.FeatureTable(
+            name="user_transactions",
+            source=transaction_source,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+
+        passing_result = _make_validation_result(
+            table_name="user_transactions", passed=True
+        )
+
+        with (
+            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
+            patch("strata.quality.validate_table", return_value=passing_result),
+        ):
+            result = engine.build(tables=[table])
+
+        assert result.success_count == 1
+        assert result.failed_count == 0
+        assert result.is_success is True
+
+        table_result = result.table_results[0]
+        assert table_result.validation_passed is True
+        assert table_result.validation_warnings == 0
+
+        # Data should have been written
+        mock_backend.write_table.assert_called_once()
+
+    def test_build_with_validation_failing(
+        self, mock_backend, user_entity, transaction_source
+    ):
+        """Data fails validation, table is NOT written, status is FAILED."""
+        engine = build_mod.BuildEngine.model_construct(backend=mock_backend)
+
+        table = core.FeatureTable(
+            name="user_transactions",
+            source=transaction_source,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+
+        failing_result = _make_failing_validation(table_name="user_transactions")
+
+        with (
+            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
+            patch("strata.quality.validate_table", return_value=failing_result),
+        ):
+            result = engine.build(tables=[table])
+
+        assert result.failed_count == 1
+        assert result.success_count == 0
+        assert result.is_success is False
+
+        table_result = result.table_results[0]
+        assert table_result.status == build_mod.BuildStatus.FAILED
+        assert table_result.validation_passed is False
+        assert "quality check failed" in table_result.error
+        assert "--skip-quality" in table_result.error
+
+        # Data should NOT have been written
+        mock_backend.write_table.assert_not_called()
+
+    def test_build_skip_quality(
+        self, mock_backend, user_entity, transaction_source
+    ):
+        """skip_quality=True bypasses validation entirely."""
+        engine = build_mod.BuildEngine.model_construct(backend=mock_backend)
+
+        table = core.FeatureTable(
+            name="user_transactions",
+            source=transaction_source,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+
+        with (
+            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
+            patch("strata.quality.validate_table") as mock_validate,
+        ):
+            result = engine.build(tables=[table], skip_quality=True)
+
+        # validate_table should NOT have been called
+        mock_validate.assert_not_called()
+
+        assert result.success_count == 1
+        assert result.is_success is True
+
+        table_result = result.table_results[0]
+        assert table_result.validation_passed is None  # Skipped
+        assert table_result.validation_warnings == 0
+
+        # Data should have been written
+        mock_backend.write_table.assert_called_once()
+
+    def test_build_validation_failure_skips_downstream(
+        self, mock_backend, user_entity, transaction_source
+    ):
+        """When upstream validation fails, downstream tables are SKIPPED."""
+        engine = build_mod.BuildEngine.model_construct(backend=mock_backend)
+
+        base_table = core.FeatureTable(
+            name="base_features",
+            source=transaction_source,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+        base_table.aggregate(
+            name="spend_90d",
+            field=core.Field(dtype="float64"),
+            column="amount",
+            function="sum",
+            window=timedelta(days=90),
+        )
+
+        derived_table = core.FeatureTable(
+            name="derived_features",
+            source=base_table,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+        derived_table.aggregate(
+            name="risk_score",
+            field=core.Field(dtype="float64"),
+            column="spend_90d",
+            function="avg",
+            window=timedelta(days=30),
+        )
+
+        failing_result = _make_failing_validation(table_name="base_features")
+
+        with (
+            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
+            patch("strata.quality.validate_table", return_value=failing_result),
+        ):
+            result = engine.build(tables=[base_table, derived_table])
+
+        assert result.failed_count == 1
+        assert result.skipped_count == 1
+        assert result.success_count == 0
+
+        base_result = result.table_results[0]
+        assert base_result.table_name == "base_features"
+        assert base_result.status == build_mod.BuildStatus.FAILED
+        assert base_result.validation_passed is False
+
+        derived_result = result.table_results[1]
+        assert derived_result.table_name == "derived_features"
+        assert derived_result.status == build_mod.BuildStatus.SKIPPED
+        assert "base_features" in derived_result.error
+
+    def test_build_validation_warnings(
+        self, mock_backend, user_entity, transaction_source
+    ):
+        """Warn-severity failures don't block write, but are counted."""
+        engine = build_mod.BuildEngine.model_construct(backend=mock_backend)
+
+        table = core.FeatureTable(
+            name="user_transactions",
+            source=transaction_source,
+            entity=user_entity,
+            timestamp_field="event_timestamp",
+        )
+
+        warning_result = _make_warning_validation(table_name="user_transactions")
+
+        with (
+            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
+            patch("strata.quality.validate_table", return_value=warning_result),
+        ):
+            result = engine.build(tables=[table])
+
+        assert result.success_count == 1
+        assert result.is_success is True
+
+        table_result = result.table_results[0]
+        assert table_result.validation_passed is True
+        assert table_result.validation_warnings == 1
+
+        # Data should have been written (warnings don't block)
+        mock_backend.write_table.assert_called_once()
+
+        # BuildResult-level aggregation
+        assert result.validation_count == 1
+        assert result.validation_warning_count == 1
+
+
+# ---------------------------------------------------------------------------
+# BuildResult validation properties
+# ---------------------------------------------------------------------------
+
+
+class TestBuildResultValidation:
+    def test_validation_count_with_mix(self):
+        """validation_count counts only validated tables."""
+        result = build_mod.BuildResult(
+            table_results=[
+                build_mod.TableBuildResult(
+                    table_name="a",
+                    status=build_mod.BuildStatus.SUCCESS,
+                    validation_passed=True,
+                ),
+                build_mod.TableBuildResult(
+                    table_name="b",
+                    status=build_mod.BuildStatus.SUCCESS,
+                    validation_passed=None,  # Skipped
+                ),
+                build_mod.TableBuildResult(
+                    table_name="c",
+                    status=build_mod.BuildStatus.FAILED,
+                    validation_passed=False,
+                ),
+            ]
+        )
+        assert result.validation_count == 2  # a and c were validated
+
+    def test_validation_warning_count(self):
+        """validation_warning_count sums warnings across all tables."""
+        result = build_mod.BuildResult(
+            table_results=[
+                build_mod.TableBuildResult(
+                    table_name="a",
+                    status=build_mod.BuildStatus.SUCCESS,
+                    validation_warnings=2,
+                ),
+                build_mod.TableBuildResult(
+                    table_name="b",
+                    status=build_mod.BuildStatus.SUCCESS,
+                    validation_warnings=1,
+                ),
+            ]
+        )
+        assert result.validation_warning_count == 3

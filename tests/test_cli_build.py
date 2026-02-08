@@ -79,6 +79,8 @@ def _mock_build_result(*, is_success=True, table_results=None):
     result.success_count = sum(1 for t in result.table_results if getattr(t, "_success", True))
     result.failed_count = 0 if is_success else 1
     result.skipped_count = 0
+    result.validation_count = 0
+    result.validation_warning_count = 0
     return result
 
 
@@ -307,11 +309,15 @@ class TestBuildFailedExitsNonzero:
                 error="Something went wrong",
                 duration_ms=100.0,
                 row_count=None,
+                validation_passed=None,
+                validation_warnings=0,
             ),
         ]
         failed_result.success_count = 0
         failed_result.failed_count = 1
         failed_result.skipped_count = 0
+        failed_result.validation_count = 0
+        failed_result.validation_warning_count = 0
 
         discovered = _mock_discovered_tables()
 
@@ -412,3 +418,56 @@ class TestBuildScheduleFilter:
                 app(["build", "--schedule", "weekly"])
 
         assert exc_info.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# --skip-quality flag
+# ---------------------------------------------------------------------------
+
+
+class TestBuildSkipQualityFlag:
+    def test_build_skip_quality_flag(self, project_dir, monkeypatch):
+        """--skip-quality should be accepted and passed to engine.build()."""
+        monkeypatch.chdir(project_dir)
+
+        discovered = _mock_discovered_tables()
+        mock_result = _mock_build_result()
+
+        with patch(
+            "strata.discovery.discover_definitions", return_value=discovered
+        ):
+            with patch("strata.build.BuildEngine") as mock_engine_cls:
+                mock_engine_cls.return_value.build.return_value = mock_result
+                with patch.object(cli_mod.console, "print"):
+                    run_cli(["build", "--skip-quality"])
+
+                build_call = mock_engine_cls.return_value.build.call_args
+                assert build_call.kwargs["skip_quality"] is True
+
+    def test_build_no_skip_quality_defaults_false(self, project_dir, monkeypatch):
+        """Without --skip-quality, skip_quality should be False."""
+        monkeypatch.chdir(project_dir)
+
+        discovered = _mock_discovered_tables()
+        mock_result = _mock_build_result()
+
+        with patch(
+            "strata.discovery.discover_definitions", return_value=discovered
+        ):
+            with patch("strata.build.BuildEngine") as mock_engine_cls:
+                mock_engine_cls.return_value.build.return_value = mock_result
+                with patch.object(cli_mod.console, "print"):
+                    run_cli(["build"])
+
+                build_call = mock_engine_cls.return_value.build.call_args
+                assert build_call.kwargs["skip_quality"] is False
+
+    def test_build_help_shows_skip_quality(self, capsys):
+        """build --help should show --skip-quality flag."""
+        with pytest.raises(SystemExit) as exc_info:
+            app(["build", "--help"])
+
+        assert exc_info.value.code == 0
+
+        captured = capsys.readouterr()
+        assert "--skip-quality" in captured.out
