@@ -54,7 +54,9 @@ class FeatureTable(StrataBaseModel):
     merge_keys: list[str] | None = None  # None = use entity.join_keys
     lookback: timedelta | None = None  # Late-arriving data window
 
+    # Quality
     sla: "checks.SLA | None" = None
+    sample_pct: float | None = None  # Percentage of rows to validate (1-100)
 
     # Internal storage for features
     _features: dict[str, Feature] = pdt.PrivateAttr(default_factory=dict)
@@ -65,6 +67,17 @@ class FeatureTable(StrataBaseModel):
     model_config = pdt.ConfigDict(
         arbitrary_types_allowed=True,
     )
+
+    @pdt.model_validator(mode="after")
+    def validate_sample_pct(self) -> "FeatureTable":
+        """Ensure sample_pct is between 1 and 100 if provided."""
+        if self.sample_pct is not None and not (1 <= self.sample_pct <= 100):
+            raise errors.StrataError(
+                context=f"Validating FeatureTable '{self.name}'",
+                cause=f"sample_pct must be between 1 and 100, got {self.sample_pct}",
+                fix="Set sample_pct to a value between 1 and 100 (e.g., sample_pct=10).",
+            )
+        return self
 
     def model_post_init(self, __context) -> None:
         """Initialize private attributes for Pydantic v2 compatibility."""
@@ -459,6 +472,9 @@ class Field(StrataBaseModel):
 
     # Statistical
     max_zscore: float | None = None  # Outlier detection
+
+    # Severity
+    severity: Literal["warn", "error"] = "error"  # Constraint violation behavior
 
     # Metadata
     tags: list[str] | None = None  # ["pii", "financial"]

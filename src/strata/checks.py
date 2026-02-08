@@ -9,28 +9,18 @@ import strata.core as core
 
 
 class SLA(core.StrataBaseModel):
-    """Table-level operational guarantees.
+    """Table-level operational guarantees for freshness and row counts.
 
-    SLAs define freshness expectations, row count bounds, and late data handling
-    for feature tables.
+    SLAs monitor operational health. Default severity is 'warn' (informational).
+    Override to 'error' to make SLA violations block builds.
+
+    Example:
+        FeatureTable(
+            ...,
+            sla=SLA(max_staleness=timedelta(hours=6), min_row_count=1000),
+        )
     """
 
-    # Freshness
-    freshness_expected: timedelta  # Normal latency
-    freshness_max: timedelta  # Alert threshold
-
-    # Row count
+    max_staleness: timedelta | None = None
     min_row_count: int | None = None
-    max_row_count: int | None = None
-
-    # Late data
-    late_data_max: timedelta | None = None  # Max lateness before action
-    late_data_action: Literal["accept", "quarantine", "discard"] = "accept"
-
-    # Alerting
-    owner: str | None = None
-    slack_channel: str | None = None
-    oncall: str | None = None
-
-    # Enforcement
-    on_violation: Literal["warn", "fail"] = "warn"
+    severity: Literal["warn", "error"] = "warn"
