@@ -9,15 +9,20 @@ The backend handles everything -- connection, source registration,
 execution, and output I/O. Table write semantics (append/merge) come
 from table.write_mode. Build orchestration (full_refresh, date range)
 comes from CLI flags passed as method params.
+
+Validation integration: after execute but before write, data is validated
+against Field constraints. Failed validation prevents data from being
+written (previous good version remains). Use skip_quality=True to bypass.
 """
 
 from __future__ import annotations
 
 import enum
+import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import TYPE_CHECKING
+from datetime import datetime, timezone
+from typing import TYPE_CHECKING, Any
 
 import pydantic as pdt
 
@@ -50,6 +55,8 @@ class TableBuildResult:
     error: str | None = None
     row_count: int | None = None
     duration_ms: float | None = None
+    validation_passed: bool | None = None  # None if validation was skipped
+    validation_warnings: int = 0  # Count of warn-severity failures
 
 
 @dataclass
@@ -78,6 +85,16 @@ class BuildResult:
         """True if all tables built successfully (no failures or skips)."""
         return self.failed_count == 0 and self.skipped_count == 0
 
+    @property
+    def validation_count(self) -> int:
+        """Number of tables that were validated."""
+        return sum(1 for r in self.table_results if r.validation_passed is not None)
+
+    @property
+    def validation_warning_count(self) -> int:
+        """Total number of validation warnings across all tables."""
+        return sum(r.validation_warnings for r in self.table_results)
+
 
 class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     """Execution engine for materializing feature tables.
@@ -90,14 +107,19 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     orchestration (full_refresh, start/end) comes from CLI flags
     passed through as method params.
 
+    Validation: after execute but before write, data is validated
+    against Field constraints (unless skip_quality=True). Failed
+    validation prevents data from being written.
+
     Example:
         cfg = settings.load_strata_settings(env="dev")
         env_cfg = cfg.active_environment
-        engine = BuildEngine(backend=env_cfg.backend)
+        engine = BuildEngine(backend=env_cfg.backend, registry=env_cfg.registry)
         result = engine.build(tables=[user_transactions, user_risk])
     """
 
     backend: backends.BackendKind = pdt.Field(..., discriminator="kind")
+    registry: backends.RegistryKind | None = pdt.Field(default=None, discriminator="kind")
 
     def build(
         self,
@@ -107,6 +129,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         full_refresh: bool = False,
         start: datetime | None = None,
         end: datetime | None = None,
+        skip_quality: bool = False,
     ) -> BuildResult:
         """Build feature tables in DAG order.
 
@@ -120,6 +143,8 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                 provided with end, filters data and deletes existing data
                 in range before writing.
             end: End of date range for backfill (exclusive).
+            skip_quality: If True, bypass data validation. Useful for
+                development/debugging iteration.
 
         Returns:
             BuildResult with per-table status tracking.
@@ -178,6 +203,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                     full_refresh=full_refresh,
                     start=start,
                     end=end,
+                    skip_quality=skip_quality,
                 )
                 result.table_results.append(table_result)
                 if table_result.status == BuildStatus.FAILED:
@@ -203,8 +229,12 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         full_refresh: bool,
         start: datetime | None,
         end: datetime | None,
+        skip_quality: bool = False,
     ) -> TableBuildResult:
-        """Build a single table: compile, execute, write.
+        """Build a single table: compile, execute, validate, write.
+
+        Validation runs after execute but BEFORE write. Failed validation
+        prevents data from being written (previous good version remains).
 
         Args:
             table: The FeatureTable to build.
@@ -213,6 +243,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             full_refresh: If True, drop table and use overwrite mode.
             start: Start of date range for backfill (inclusive).
             end: End of date range for backfill (exclusive).
+            skip_quality: If True, skip validation.
 
         Returns:
             TableBuildResult with status and metadata.
@@ -238,6 +269,82 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
             # Execute the expression via the backend
             data = self.backend.execute(conn, compiled.ibis_expr)
+
+            # Validate data BEFORE writing (unless skip_quality is True)
+            validation_passed: bool | None = None
+            validation_warnings: int = 0
+
+            if not skip_quality:
+                import strata.quality as quality
+
+                validation_result = quality.validate_table(
+                    table=table,
+                    data=data,
+                    sample_pct=table.sample_pct,
+                )
+
+                validation_passed = validation_result.passed
+                validation_warnings = sum(
+                    1
+                    for fr in validation_result.field_results
+                    for cr in fr.constraints
+                    if not cr.passed and cr.severity == "warn"
+                )
+
+                # Persist quality result to registry
+                self._persist_quality_result(table.name, validation_result)
+
+                if not validation_result.passed:
+                    elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
+
+                    # Collect failed error-severity constraints for message
+                    failed_constraints = []
+                    for fr in validation_result.field_results:
+                        for cr in fr.constraints:
+                            if not cr.passed and cr.severity == "error":
+                                failed_constraints.append(
+                                    f"{cr.field_name}.{cr.constraint}: "
+                                    f"expected {cr.expected}, got {cr.actual}"
+                                )
+
+                    error_msg = (
+                        f"Validating '{table.name}': "
+                        f"data quality check failed. "
+                        f"{'; '.join(failed_constraints)}. "
+                        f"Fix the data or use --skip-quality to bypass."
+                    )
+                    logger.error(
+                        "Validation failed for '%s': %s",
+                        table.name,
+                        error_msg,
+                    )
+
+                    # Persist build record as failed
+                    self._persist_build_record(
+                        table_name=table.name,
+                        status="failed",
+                        row_count=len(data) if data is not None else 0,
+                        duration_ms=elapsed_ms,
+                        data=data,
+                        timestamp_field=table.timestamp_field,
+                    )
+
+                    return TableBuildResult(
+                        table_name=table.name,
+                        status=BuildStatus.FAILED,
+                        error=error_msg,
+                        duration_ms=elapsed_ms,
+                        validation_passed=False,
+                        validation_warnings=validation_warnings,
+                    )
+
+                # Log warnings if any
+                if validation_result.has_warnings:
+                    logger.warning(
+                        "Validation passed with %d warning(s) for '%s'",
+                        validation_warnings,
+                        table.name,
+                    )
 
             # Handle full_refresh: drop table first, then write with overwrite
             if full_refresh:
@@ -276,19 +383,147 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
             row_count = len(data) if data is not None else 0
 
+            # Persist build record as success
+            self._persist_build_record(
+                table_name=table.name,
+                status="success",
+                row_count=row_count,
+                duration_ms=elapsed_ms,
+                data=data,
+                timestamp_field=table.timestamp_field,
+            )
+
             return TableBuildResult(
                 table_name=table.name,
                 status=BuildStatus.SUCCESS,
                 row_count=row_count,
                 duration_ms=elapsed_ms,
+                validation_passed=validation_passed,
+                validation_warnings=validation_warnings,
             )
 
         except Exception as exc:
             elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
             logger.error("Build failed for '%s': %s", table.name, exc)
+
+            # Persist build record as failed
+            self._persist_build_record(
+                table_name=table.name,
+                status="failed",
+                row_count=None,
+                duration_ms=elapsed_ms,
+                data=None,
+                timestamp_field=table.timestamp_field,
+            )
+
             return TableBuildResult(
                 table_name=table.name,
                 status=BuildStatus.FAILED,
                 error=str(exc),
                 duration_ms=elapsed_ms,
+            )
+
+    def _persist_quality_result(
+        self,
+        table_name: str,
+        validation_result: Any,
+    ) -> None:
+        """Persist a quality validation result to the registry.
+
+        Args:
+            table_name: Name of the validated table.
+            validation_result: TableValidationResult from quality module.
+        """
+        if self.registry is None:
+            return
+
+        import strata.registry as reg_types
+
+        # Serialize field results to JSON
+        results_data = []
+        for fr in validation_result.field_results:
+            for cr in fr.constraints:
+                results_data.append({
+                    "field_name": cr.field_name,
+                    "constraint": cr.constraint,
+                    "passed": cr.passed,
+                    "severity": cr.severity,
+                    "expected": cr.expected,
+                    "actual": cr.actual,
+                    "rows_checked": cr.rows_checked,
+                    "rows_failed": cr.rows_failed,
+                })
+
+        record = reg_types.QualityResultRecord(
+            id=None,
+            timestamp=datetime.now(timezone.utc),
+            table_name=table_name,
+            passed=validation_result.passed,
+            has_warnings=validation_result.has_warnings,
+            rows_checked=validation_result.rows_checked,
+            results_json=json.dumps(results_data),
+        )
+
+        try:
+            self.registry.put_quality_result(record)
+        except Exception:
+            logger.warning(
+                "Failed to persist quality result for '%s'",
+                table_name,
+                exc_info=True,
+            )
+
+    def _persist_build_record(
+        self,
+        table_name: str,
+        status: str,
+        row_count: int | None,
+        duration_ms: float,
+        data: Any,
+        timestamp_field: str,
+    ) -> None:
+        """Persist a build record to the registry.
+
+        Args:
+            table_name: Name of the built table.
+            status: Build status ("success", "failed", "skipped").
+            row_count: Number of rows in built data.
+            duration_ms: Build duration in milliseconds.
+            data: PyArrow Table with built data (for timestamp extraction).
+            timestamp_field: Name of the timestamp column.
+        """
+        if self.registry is None:
+            return
+
+        import strata.registry as reg_types
+
+        # Extract max data timestamp if available
+        data_timestamp_max: str | None = None
+        if data is not None and timestamp_field in data.column_names:
+            try:
+                import pyarrow.compute as pc
+
+                max_ts = pc.max(data.column(timestamp_field))
+                if max_ts.is_valid:
+                    data_timestamp_max = str(max_ts.as_py())
+            except Exception:
+                pass  # Best-effort timestamp extraction
+
+        record = reg_types.BuildRecord(
+            id=None,
+            timestamp=datetime.now(timezone.utc),
+            table_name=table_name,
+            status=status,
+            row_count=row_count,
+            duration_ms=duration_ms,
+            data_timestamp_max=data_timestamp_max,
+        )
+
+        try:
+            self.registry.put_build_record(record)
+        except Exception:
+            logger.warning(
+                "Failed to persist build record for '%s'",
+                table_name,
+                exc_info=True,
             )
