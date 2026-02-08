@@ -113,6 +113,61 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.get_changelog() not implemented")
 
+    def put_quality_result(self, result: "registry.QualityResultRecord") -> None:
+        """Store a quality validation result.
+
+        Args:
+            result: Quality result record to persist.
+        """
+        raise NotImplementedError("Registry.put_quality_result() not implemented")
+
+    def get_quality_results(
+        self, table_name: str, limit: int = 10
+    ) -> "list[registry.QualityResultRecord]":
+        """Get recent quality results for a table.
+
+        Args:
+            table_name: Name of the table to query results for.
+            limit: Maximum number of results to return.
+
+        Returns:
+            List of QualityResultRecord instances, newest first.
+        """
+        raise NotImplementedError("Registry.get_quality_results() not implemented")
+
+    def put_build_record(self, record: "registry.BuildRecord") -> None:
+        """Store a build execution record.
+
+        Args:
+            record: Build record to persist.
+        """
+        raise NotImplementedError("Registry.put_build_record() not implemented")
+
+    def get_latest_build(self, table_name: str) -> "registry.BuildRecord | None":
+        """Get the most recent build record for a table.
+
+        Args:
+            table_name: Name of the table to query.
+
+        Returns:
+            Most recent BuildRecord if any exist, None otherwise.
+        """
+        raise NotImplementedError("Registry.get_latest_build() not implemented")
+
+    def get_build_records(
+        self, table_name: str | None = None, limit: int = 10
+    ) -> "list[registry.BuildRecord]":
+        """Get recent build records, optionally filtered by table.
+
+        Args:
+            table_name: If provided, filter to only this table.
+            limit: Maximum number of records to return.
+
+        Returns:
+            List of BuildRecord instances, newest first.
+        """
+        raise NotImplementedError("Registry.get_build_records() not implemented")
+
 
 class BaseBackend(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     """Backend interface -- single abstraction per deployment target.

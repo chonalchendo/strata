@@ -44,6 +44,41 @@ class ChangelogEntry:
     applied_by: str  # user@hostname
 
 
+@dataclass(frozen=True)
+class QualityResultRecord:
+    """Persisted quality validation result for a table build.
+
+    Stores the outcome of running field-level constraints on materialized data.
+    Results are serialized as JSON for flexible constraint detail storage.
+    """
+
+    id: int | None  # Auto-assigned by DB
+    timestamp: datetime
+    table_name: str
+    passed: bool
+    has_warnings: bool
+    rows_checked: int
+    results_json: str  # JSON serialization of field results
+    build_id: int | None = None  # Reference to build record
+
+
+@dataclass(frozen=True)
+class BuildRecord:
+    """Record of a table build execution.
+
+    Tracks build metadata including timing, row counts, and the maximum
+    data timestamp for freshness calculations.
+    """
+
+    id: int | None  # Auto-assigned by DB
+    timestamp: datetime
+    table_name: str
+    status: str  # "success", "failed", "skipped"
+    row_count: int | None = None
+    duration_ms: float | None = None
+    data_timestamp_max: str | None = None  # Max value of timestamp_field in built data
+
+
 def compute_spec_hash(spec_json: str) -> str:
     """Compute SHA256 hash of canonical JSON spec.
 
