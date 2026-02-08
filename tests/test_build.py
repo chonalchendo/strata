@@ -20,6 +20,35 @@ from strata.backends.local.storage import LocalSourceConfig
 # ---------------------------------------------------------------------------
 
 
+def _make_mock_compiler():
+    """Create a mock IbisCompiler that returns a mock compiled result.
+
+    Avoids the decimal.ConversionSyntax issue in ibis.interval() on
+    Python 3.14+ by bypassing the real compiler entirely.
+    """
+    mock_compiled = MagicMock()
+    mock_compiled.ibis_expr = MagicMock()
+    mock_compiler = MagicMock()
+    mock_compiler.compile_table.return_value = mock_compiled
+    return mock_compiler
+
+
+@pytest.fixture(autouse=True)
+def _patch_compiler():
+    """Auto-patch IbisCompiler for all build tests.
+
+    The build engine tests exercise orchestration logic (DAG ordering,
+    write modes, failure cascading) -- not the compiler itself. Mocking
+    the compiler avoids the decimal.ConversionSyntax crash that
+    ibis.interval() triggers on Python 3.14+.
+    """
+    with patch(
+        "strata.compiler.IbisCompiler",
+        return_value=_make_mock_compiler(),
+    ):
+        yield
+
+
 @pytest.fixture
 def user_entity():
     return core.Entity(name="user", join_keys=["user_id"])
@@ -751,17 +780,10 @@ def _make_warning_validation(table_name="test_table"):
 class TestBuildWithValidation:
     """Tests for validate-before-write integration in BuildEngine.
 
-    These tests mock the compiler to avoid the pre-existing
-    decimal.ConversionSyntax issue in Python 3.14+.
+    The autouse _patch_compiler fixture handles the IbisCompiler mock.
+    These tests additionally mock quality.validate_table to control
+    validation outcomes.
     """
-
-    def _mock_compiler(self):
-        """Create a mock IbisCompiler that returns a mock compiled result."""
-        mock_compiled = MagicMock()
-        mock_compiled.ibis_expr = MagicMock()
-        mock_ibis_compiler = MagicMock()
-        mock_ibis_compiler.compile_table.return_value = mock_compiled
-        return mock_ibis_compiler
 
     def test_build_with_validation_passing(
         self, mock_backend, user_entity, transaction_source
@@ -780,10 +802,7 @@ class TestBuildWithValidation:
             table_name="user_transactions", passed=True
         )
 
-        with (
-            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
-            patch("strata.quality.validate_table", return_value=passing_result),
-        ):
+        with patch("strata.quality.validate_table", return_value=passing_result):
             result = engine.build(tables=[table])
 
         assert result.success_count == 1
@@ -812,10 +831,7 @@ class TestBuildWithValidation:
 
         failing_result = _make_failing_validation(table_name="user_transactions")
 
-        with (
-            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
-            patch("strata.quality.validate_table", return_value=failing_result),
-        ):
+        with patch("strata.quality.validate_table", return_value=failing_result):
             result = engine.build(tables=[table])
 
         assert result.failed_count == 1
@@ -844,10 +860,7 @@ class TestBuildWithValidation:
             timestamp_field="event_timestamp",
         )
 
-        with (
-            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
-            patch("strata.quality.validate_table") as mock_validate,
-        ):
+        with patch("strata.quality.validate_table") as mock_validate:
             result = engine.build(tables=[table], skip_quality=True)
 
         # validate_table should NOT have been called
@@ -899,10 +912,7 @@ class TestBuildWithValidation:
 
         failing_result = _make_failing_validation(table_name="base_features")
 
-        with (
-            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
-            patch("strata.quality.validate_table", return_value=failing_result),
-        ):
+        with patch("strata.quality.validate_table", return_value=failing_result):
             result = engine.build(tables=[base_table, derived_table])
 
         assert result.failed_count == 1
@@ -934,10 +944,7 @@ class TestBuildWithValidation:
 
         warning_result = _make_warning_validation(table_name="user_transactions")
 
-        with (
-            patch("strata.compiler.IbisCompiler", return_value=self._mock_compiler()),
-            patch("strata.quality.validate_table", return_value=warning_result),
-        ):
+        with patch("strata.quality.validate_table", return_value=warning_result):
             result = engine.build(tables=[table])
 
         assert result.success_count == 1
