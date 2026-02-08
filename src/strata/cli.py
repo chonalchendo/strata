@@ -42,11 +42,16 @@ app = cyclopts.App(
 )
 
 
-def _handle_error(e: errors.StrataError) -> None:
+def _handle_error(e: errors.StrataError, *, json_mode: bool = False) -> None:
     """Display a structured error message."""
-    console.print(f"[bold red]Error:[/bold red] {e.context}\n")
-    console.print(f"[yellow]Cause:[/yellow] {e.cause}\n")
-    console.print(f"[green]Fix:[/green] {e.fix}")
+    if json_mode:
+        import json as json_lib
+
+        console.print(json_lib.dumps(e.to_dict(), indent=2))
+    else:
+        console.print(f"[bold red]Error:[/bold red] {e.context}\n")
+        console.print(f"[yellow]Cause:[/yellow] {e.cause}\n")
+        console.print(f"[green]Fix:[/green] {e.fix}")
 
 
 def _get_registry(strata_settings: settings.StrataSettings) -> backends.RegistryKind:
@@ -165,6 +170,10 @@ def preview(
 
 @app.command
 def validate(
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to validate against"),
@@ -180,45 +189,51 @@ def validate(
     """
     try:
         strata_settings = settings.load_strata_settings(env=env_name)
-        console.print(f"[bold]Validating project: {strata_settings.name}[/bold]")
-        console.print()
 
-        # Validate configuration
-        console.print("[green]✓[/green] Configuration valid")
-        console.print(f"  Project: {strata_settings.name}")
-        console.print(f"  Environment: {strata_settings.active_env}")
-        if strata_settings.schedules:
-            console.print(f"  Schedules: {', '.join(strata_settings.schedules)}")
-        console.print()
+        if not json_output:
+            console.print(f"[bold]Validating project: {strata_settings.name}[/bold]")
+            console.print()
 
-        # Validate definitions
-        console.print("[dim]Validating definitions...[/dim]")
+            # Validate configuration
+            console.print("[green]✓[/green] Configuration valid")
+            console.print(f"  Project: {strata_settings.name}")
+            console.print(f"  Environment: {strata_settings.active_env}")
+            if strata_settings.schedules:
+                console.print(f"  Schedules: {', '.join(strata_settings.schedules)}")
+            console.print()
+
+            console.print("[dim]Validating definitions...[/dim]")
         result = validation.validate_definitions(strata_settings)
 
-        # Report warnings
-        for issue in result.warnings:
-            _render_issue(issue, "yellow", "warning")
+        if json_output:
+            _render_validate_json(result)
+        else:
+            # Report warnings
+            for issue in result.warnings:
+                _render_issue(issue, "yellow", "warning")
 
-        # Report errors
-        for issue in result.errors:
-            _render_issue(issue, "red", "error")
+            # Report errors
+            for issue in result.errors:
+                _render_issue(issue, "red", "error")
 
-        console.print()
+            console.print()
+
+            if result.has_errors:
+                console.print(
+                    f"[bold red]Validation failed:[/bold red] {len(result.errors)} error(s)"
+                )
+            elif result.has_warnings:
+                console.print(
+                    f"[bold yellow]Validation passed with warnings:[/bold yellow] {len(result.warnings)} warning(s)"
+                )
+            else:
+                console.print("[bold green]✓ Validation passed[/bold green]")
 
         if result.has_errors:
-            console.print(
-                f"[bold red]Validation failed:[/bold red] {len(result.errors)} error(s)"
-            )
             raise SystemExit(1)
-        elif result.has_warnings:
-            console.print(
-                f"[bold yellow]Validation passed with warnings:[/bold yellow] {len(result.warnings)} warning(s)"
-            )
-        else:
-            console.print("[bold green]✓ Validation passed[/bold green]")
 
     except errors.StrataError as e:
-        _handle_error(e)
+        _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
 
 
@@ -232,6 +247,31 @@ def _render_issue(issue: validation.ValidationIssue, color: str, label: str) -> 
     if issue.fix_suggestion:
         console.print(f"  [green]Fix: {issue.fix_suggestion}[/green]")
     console.print()
+
+
+def _render_validate_json(result: validation.ValidationResult) -> None:
+    """Output validation results as machine-readable JSON."""
+    import json as json_lib
+
+    output_data = {
+        "passed": not result.has_errors,
+        "has_warnings": result.has_warnings,
+        "error_count": len(result.errors),
+        "warning_count": len(result.warnings),
+        "issues": [
+            {
+                "severity": issue.severity,
+                "message": issue.message,
+                "source_file": issue.source_file,
+                "object_kind": issue.object_kind,
+                "object_name": issue.object_name,
+                "fix_suggestion": issue.fix_suggestion,
+            }
+            for issue in result.issues
+        ],
+    }
+
+    console.print(json_lib.dumps(output_data, indent=2))
 
 
 @app.command
@@ -376,6 +416,10 @@ def build(
         str | None,
         cyclopts.Parameter(name="--end", help="Backfill end date (YYYY-MM-DD)"),
     ] = None,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to build in"),
@@ -421,18 +465,19 @@ def build(
         end_dt = _parse_date(end) if end else None
 
         # Print build context header
-        console.print(f"[bold]Building in {strata_settings.active_env}...[/bold]")
-        if table:
-            console.print(f"  Target: {table}")
-        if schedule:
-            console.print(f"  Schedule: {schedule}")
-        if full_refresh:
-            console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
-        if skip_quality:
-            console.print("  Quality: [yellow]skipped[/yellow]")
-        if start_dt and end_dt:
-            console.print(f"  Date range: {start} to {end}")
-        console.print()
+        if not json_output:
+            console.print(f"[bold]Building in {strata_settings.active_env}...[/bold]")
+            if table:
+                console.print(f"  Target: {table}")
+            if schedule:
+                console.print(f"  Schedule: {schedule}")
+            if full_refresh:
+                console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
+            if skip_quality:
+                console.print("  Quality: [yellow]skipped[/yellow]")
+            if start_dt and end_dt:
+                console.print(f"  Date range: {start} to {end}")
+            console.print()
 
         # Discover feature tables
         discovered = discovery.discover_definitions(strata_settings)
@@ -441,7 +486,8 @@ def build(
         ]
 
         if not feature_tables:
-            console.print("[dim]No feature tables found[/dim]")
+            if not json_output:
+                console.print("[dim]No feature tables found[/dim]")
             return
 
         # Filter by schedule tag if provided
@@ -450,9 +496,10 @@ def build(
                 ft for ft in feature_tables if ft.schedule == schedule
             ]
             if not feature_tables:
-                console.print(
-                    f"[dim]No feature tables with schedule '{schedule}'[/dim]"
-                )
+                if not json_output:
+                    console.print(
+                        f"[dim]No feature tables with schedule '{schedule}'[/dim]"
+                    )
                 return
 
         # Build using settings backend and registry
@@ -476,15 +523,18 @@ def build(
 
         elapsed = time.perf_counter() - t0
 
-        # Display results in Pulumi-style output
-        _render_build_results(result, elapsed, skip_quality=skip_quality)
+        # Display results
+        if json_output:
+            _render_build_json(result, elapsed, skip_quality=skip_quality)
+        else:
+            _render_build_results(result, elapsed, skip_quality=skip_quality)
 
         # Exit non-zero on failure
         if not result.is_success:
             raise SystemExit(1)
 
     except errors.StrataError as e:
-        _handle_error(e)
+        _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
 
 
@@ -569,6 +619,40 @@ def _render_build_results(
                 f"[yellow]{result.validation_warning_count} warning(s)[/yellow]"
             )
         console.print(f"[dim]Quality: {', '.join(quality_parts)}[/dim]")
+
+
+def _render_build_json(
+    result: "build_mod.BuildResult",
+    elapsed: float,
+    *,
+    skip_quality: bool = False,
+) -> None:
+    """Output build results as machine-readable JSON."""
+    import json as json_lib
+
+    tables = []
+    for table_result in result.table_results:
+        tables.append({
+            "table": table_result.table_name,
+            "status": table_result.status.value,
+            "duration_ms": table_result.duration_ms,
+            "row_count": table_result.row_count,
+            "error": table_result.error,
+            "validation_passed": table_result.validation_passed,
+            "validation_warnings": table_result.validation_warnings,
+        })
+
+    output_data = {
+        "success": result.is_success,
+        "elapsed_seconds": round(elapsed, 2),
+        "success_count": result.success_count,
+        "failed_count": result.failed_count,
+        "skipped_count": result.skipped_count,
+        "skip_quality": skip_quality,
+        "tables": tables,
+    }
+
+    console.print(json_lib.dumps(output_data, indent=2))
 
 
 @app.command
@@ -795,6 +879,10 @@ def ls(
             help="Filter by kind (entity, feature_table, source_table, dataset)"
         ),
     ] = None,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to list from"),
@@ -827,35 +915,53 @@ def ls(
         objects = reg.list_objects(kind=kind)
 
         if not objects:
-            if kind:
+            if json_output:
+                import json as json_lib
+
+                console.print(json_lib.dumps([], indent=2))
+            elif kind:
                 console.print(f"[dim]No {kind} objects registered[/dim]")
             else:
                 console.print("[dim]No objects registered[/dim]")
             return
 
-        # Display as Rich table
-        from rich.table import Table
+        if json_output:
+            import json as json_lib
 
-        table = Table(show_header=True, header_style="bold")
-        table.add_column("Kind")
-        table.add_column("Name")
-        table.add_column("Version")
-        table.add_column("Hash")
+            output_data = [
+                {
+                    "kind": obj.kind,
+                    "name": obj.name,
+                    "version": obj.version,
+                    "hash": obj.spec_hash[:8],
+                }
+                for obj in objects
+            ]
+            console.print(json_lib.dumps(output_data, indent=2))
+        else:
+            # Display as Rich table
+            from rich.table import Table
 
-        for obj in objects:
-            table.add_row(
-                obj.kind,
-                obj.name,
-                str(obj.version),
-                obj.spec_hash[:8],
-            )
+            table = Table(show_header=True, header_style="bold")
+            table.add_column("Kind")
+            table.add_column("Name")
+            table.add_column("Version")
+            table.add_column("Hash")
 
-        console.print(table)
-        console.print()
-        console.print(f"[dim]Total: {len(objects)} object(s)[/dim]")
+            for obj in objects:
+                table.add_row(
+                    obj.kind,
+                    obj.name,
+                    str(obj.version),
+                    obj.spec_hash[:8],
+                )
+
+            console.print(table)
+            console.print()
+            console.print(f"[dim]Total: {len(objects)} object(s)[/dim]")
 
     except errors.StrataError as e:
-        _handle_error(e)
+        _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
 
 
@@ -916,7 +1022,7 @@ def quality(
             raise SystemExit(1)
 
     except errors.StrataError as e:
-        _handle_error(e)
+        _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
 
 
@@ -1215,7 +1321,7 @@ def freshness(
             raise SystemExit(1)
 
     except errors.StrataError as e:
-        _handle_error(e)
+        _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
 
 

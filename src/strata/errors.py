@@ -25,6 +25,16 @@ class StrataError(Exception):
         message = f"{context}\n\nCause: {cause}\n\nFix: {fix}"
         super().__init__(message)
 
+    def to_dict(self) -> dict:
+        """Serialize error to structured dict for JSON output."""
+        return {
+            "error": True,
+            "code": type(self).__name__,
+            "context": self.context,
+            "cause": self.cause,
+            "fix": self.fix,
+        }
+
 
 class ConfigurationError(StrataError):
     """Configuration file or settings related errors."""
