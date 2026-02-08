@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     import strata.build as build_mod
+    import strata.quality as quality_mod
 
 import cyclopts
 from loguru import logger
@@ -816,3 +817,300 @@ def ls(
     except errors.StrataError as e:
         _handle_error(e)
         raise SystemExit(1)
+
+
+@app.command
+def quality(
+    table: Annotated[
+        str,
+        cyclopts.Parameter(help="Table name to check quality for"),
+    ],
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
+    live: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name="--live", help="Run live validation against current data"
+        ),
+    ] = False,
+    env_name: Annotated[
+        str | None,
+        cyclopts.Parameter(name="--env", help="Environment"),
+    ] = None,
+):
+    """Show data quality results for a table.
+
+    By default, reads the latest quality results from the registry.
+    Use --live to run validation against current built data.
+    Use --json for machine-readable output (CI pipelines).
+
+    Exit code is non-zero when any error-severity constraint fails.
+
+    Examples:
+        strata quality user_features           # Show latest results
+        strata quality user_features --live     # Run live validation
+        strata quality user_features --json     # JSON output for CI
+    """
+    try:
+        strata_settings = settings.load_strata_settings(env=env_name)
+        reg = _get_registry(strata_settings)
+        reg.initialize()
+
+        if live:
+            result = _run_live_quality(table, strata_settings, reg)
+        else:
+            result = _load_quality_from_registry(table, reg)
+
+        if result is None:
+            return
+
+        if json_output:
+            _render_quality_json(result)
+        else:
+            _render_quality_results(result)
+
+        # Exit non-zero when any error-severity constraint fails
+        if not result.passed:
+            raise SystemExit(1)
+
+    except errors.StrataError as e:
+        _handle_error(e)
+        raise SystemExit(1)
+
+
+def _load_quality_from_registry(
+    table_name: str,
+    reg: backends.RegistryKind,
+) -> "quality_mod.TableValidationResult | None":
+    """Load latest quality result from registry, returning None if absent."""
+    import json as json_lib
+
+    import strata.quality as quality_mod
+
+    records = reg.get_quality_results(table_name, limit=1)
+
+    if not records:
+        console.print(f"[yellow]No quality results found for '{table_name}'[/yellow]")
+        console.print()
+        console.print(
+            "[dim]Hint: Run [bold]strata build[/bold] to generate quality results, "
+            "or use [bold]strata quality --live[/bold] to validate current data.[/dim]"
+        )
+        return None
+
+    record = records[0]
+    raw = json_lib.loads(record.results_json)
+
+    # Reconstruct TableValidationResult from persisted JSON
+    field_results = []
+    for fr_data in raw.get("field_results", []):
+        constraints = [
+            quality_mod.ConstraintResult(
+                field_name=cr["field_name"],
+                constraint=cr["constraint"],
+                passed=cr["passed"],
+                severity=cr["severity"],
+                expected=cr["expected"],
+                actual=cr["actual"],
+                rows_checked=cr["rows_checked"],
+                rows_failed=cr["rows_failed"],
+            )
+            for cr in fr_data.get("constraints", [])
+        ]
+        field_results.append(
+            quality_mod.FieldResult(
+                field_name=fr_data["field_name"],
+                constraints=constraints,
+                passed=fr_data["passed"],
+            )
+        )
+
+    return quality_mod.TableValidationResult(
+        table_name=record.table_name,
+        field_results=field_results,
+        rows_checked=record.rows_checked,
+        passed=record.passed,
+        has_warnings=record.has_warnings,
+    )
+
+
+def _run_live_quality(
+    table_name: str,
+    strata_settings: settings.StrataSettings,
+    reg: backends.RegistryKind,
+) -> "quality_mod.TableValidationResult | None":
+    """Run live validation against current built data."""
+    import json as json_lib
+    from dataclasses import asdict
+    from datetime import datetime, timezone
+
+    import strata.quality as quality_mod
+    import strata.registry as reg_types
+
+    # Discover definitions to find the target table
+    discovered = discovery.discover_definitions(strata_settings)
+    feature_tables = [d for d in discovered if d.kind == "feature_table"]
+
+    target = None
+    for d in feature_tables:
+        if d.obj.name == table_name:
+            target = d.obj
+            break
+
+    if target is None:
+        console.print(f"[red]Error:[/red] Table '{table_name}' not found")
+        console.print()
+        available = [d.obj.name for d in feature_tables]
+        if available:
+            console.print(f"[dim]Available tables: {', '.join(available)}[/dim]")
+        raise SystemExit(1)
+
+    # Read data from backend
+    env_cfg = strata_settings.active_environment
+    backend = env_cfg.backend
+
+    if not backend.table_exists(table_name):
+        console.print(
+            f"[yellow]No built data found for '{table_name}'[/yellow]"
+        )
+        console.print(
+            "[dim]Hint: Run [bold]strata build[/bold] first to materialize data.[/dim]"
+        )
+        return None
+
+    data = backend.read_table(table_name)
+    result = quality_mod.validate_table(target, data)
+
+    # Persist result to registry
+    results_dict = asdict(result)
+    record = reg_types.QualityResultRecord(
+        id=None,
+        timestamp=datetime.now(timezone.utc),
+        table_name=table_name,
+        passed=result.passed,
+        has_warnings=result.has_warnings,
+        rows_checked=result.rows_checked,
+        results_json=json_lib.dumps(results_dict, default=str),
+    )
+    reg.put_quality_result(record)
+
+    return result
+
+
+def _render_quality_results(
+    result: "quality_mod.TableValidationResult",
+) -> None:
+    """Render quality results as a Rich table."""
+    from rich.table import Table
+
+    # Header
+    status_str = (
+        "[green]PASSED[/green]"
+        if result.passed
+        else "[red]FAILED[/red]"
+    )
+    console.print(
+        f"[bold]Quality: {result.table_name}[/bold]  {status_str}"
+    )
+    console.print(f"[dim]Rows checked: {result.rows_checked}[/dim]")
+    console.print()
+
+    if not result.field_results:
+        console.print("[dim]No constraints defined[/dim]")
+        return
+
+    # Build Rich table
+    rich_table = Table(show_header=True, header_style="bold")
+    rich_table.add_column("Field")
+    rich_table.add_column("Constraint")
+    rich_table.add_column("Expected")
+    rich_table.add_column("Actual")
+    rich_table.add_column("Status")
+    rich_table.add_column("Severity")
+
+    total = 0
+    passed_count = 0
+    failed_count = 0
+    warn_count = 0
+
+    for fr in result.field_results:
+        for cr in fr.constraints:
+            total += 1
+
+            if cr.passed:
+                status = "[green]pass[/green]"
+                passed_count += 1
+            elif cr.severity == "error":
+                status = "[red]FAIL[/red]"
+                failed_count += 1
+            else:
+                status = "[yellow]warn[/yellow]"
+                warn_count += 1
+
+            severity_str = (
+                f"[red]{cr.severity}[/red]"
+                if cr.severity == "error" and not cr.passed
+                else f"[yellow]{cr.severity}[/yellow]"
+                if cr.severity == "warn" and not cr.passed
+                else f"[dim]{cr.severity}[/dim]"
+            )
+
+            rich_table.add_row(
+                cr.field_name,
+                cr.constraint,
+                cr.expected,
+                cr.actual,
+                status,
+                severity_str,
+            )
+
+    console.print(rich_table)
+    console.print()
+
+    # Summary line
+    parts = [f"{total} constraints checked"]
+    if passed_count:
+        parts.append(f"[green]{passed_count} passed[/green]")
+    if failed_count:
+        parts.append(f"[red]{failed_count} failed[/red]")
+    if warn_count:
+        parts.append(f"[yellow]{warn_count} warnings[/yellow]")
+
+    console.print(", ".join(parts))
+
+
+def _render_quality_json(
+    result: "quality_mod.TableValidationResult",
+) -> None:
+    """Output quality results as machine-readable JSON."""
+    import json as json_lib
+
+    output_data = {
+        "table": result.table_name,
+        "passed": result.passed,
+        "has_warnings": result.has_warnings,
+        "rows_checked": result.rows_checked,
+        "fields": [
+            {
+                "field": fr.field_name,
+                "passed": fr.passed,
+                "constraints": [
+                    {
+                        "constraint": cr.constraint,
+                        "passed": cr.passed,
+                        "severity": cr.severity,
+                        "expected": cr.expected,
+                        "actual": cr.actual,
+                        "rows_checked": cr.rows_checked,
+                        "rows_failed": cr.rows_failed,
+                    }
+                    for cr in fr.constraints
+                ],
+            }
+            for fr in result.field_results
+        ],
+    }
+
+    console.print(json_lib.dumps(output_data, indent=2))
