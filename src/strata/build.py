@@ -118,8 +118,12 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         result = engine.build(tables=[user_transactions, user_risk])
     """
 
-    backend: backends.BackendKind = pdt.Field(..., discriminator="kind")
-    registry: backends.RegistryKind | None = pdt.Field(default=None, discriminator="kind")
+    backend: backends.BackendKind = pdt.Field(
+        ..., discriminator="kind"
+    )
+    registry: backends.RegistryKind | None = pdt.Field(
+        default=None, discriminator="kind"
+    )
 
     def build(
         self,
