@@ -6,6 +6,7 @@ Define features in Python, run locally, scale to Databricks.
 from __future__ import annotations
 
 import getpass
+import logging
 import socket
 import time
 from datetime import datetime, timedelta
@@ -52,6 +53,13 @@ def _handle_error(e: errors.StrataError, *, json_mode: bool = False) -> None:
         console.print(f"[bold red]Error:[/bold red] {e.context}\n")
         console.print(f"[yellow]Cause:[/yellow] {e.cause}\n")
         console.print(f"[green]Fix:[/green] {e.fix}")
+
+
+def _configure_verbose(verbose: bool) -> None:
+    """Enable debug-level logging when verbose mode is active."""
+    if verbose:
+        logging.basicConfig(level=logging.DEBUG, force=True)
+        logger.enable("strata")
 
 
 def _get_registry(strata_settings: settings.StrataSettings) -> backends.RegistryKind:
@@ -151,7 +159,8 @@ def preview(
         console.print()
 
         # Discover definitions
-        discovered = discovery.discover_definitions(strata_settings)
+        with console.status("[bold]Discovering definitions...[/bold]"):
+            discovered = discovery.discover_definitions(strata_settings)
 
         # Get registry and initialize
         reg = _get_registry(strata_settings)
@@ -174,6 +183,10 @@ def validate(
         bool,
         cyclopts.Parameter(name="--json", help="Output results as JSON"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to validate against"),
@@ -188,6 +201,7 @@ def validate(
     - Schedule tags against allowed list
     """
     try:
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
 
         if not json_output:
@@ -202,8 +216,10 @@ def validate(
                 console.print(f"  Schedules: {', '.join(strata_settings.schedules)}")
             console.print()
 
-            console.print("[dim]Validating definitions...[/dim]")
-        result = validation.validate_definitions(strata_settings)
+            with console.status("[bold]Validating definitions...[/bold]"):
+                result = validation.validate_definitions(strata_settings)
+        else:
+            result = validation.validate_definitions(strata_settings)
 
         if json_output:
             _render_validate_json(result)
@@ -287,6 +303,10 @@ def up(
         bool,
         cyclopts.Parameter(name="--yes", help="Skip confirmation prompt"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to deploy to"),
@@ -299,11 +319,13 @@ def up(
     Use --dry-run to preview without applying.
     """
     try:
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
 
         # Discovery phase with timing telemetry
         t0 = time.perf_counter()
-        discovered = discovery.discover_definitions(strata_settings)
+        with console.status("[bold]Discovering definitions...[/bold]"):
+            discovered = discovery.discover_definitions(strata_settings)
         t_discovery = time.perf_counter() - t0
         logger.debug(
             f"Discovery: {t_discovery * 1000:.1f}ms ({len(discovered)} objects)"
@@ -420,6 +442,10 @@ def build(
         bool,
         cyclopts.Parameter(name="--json", help="Output results as JSON"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to build in"),
@@ -447,6 +473,7 @@ def build(
     try:
         import strata.build as build_mod
 
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
 
         # Validate schedule tag if provided
@@ -480,7 +507,11 @@ def build(
             console.print()
 
         # Discover feature tables
-        discovered = discovery.discover_definitions(strata_settings)
+        if not json_output:
+            with console.status("[bold]Discovering definitions...[/bold]"):
+                discovered = discovery.discover_definitions(strata_settings)
+        else:
+            discovered = discovery.discover_definitions(strata_settings)
         feature_tables = [
             d.obj for d in discovered if d.kind == "feature_table"
         ]
@@ -663,6 +694,10 @@ def compile(
             help="Specific table to compile (compiles all if not specified)"
         ),
     ] = None,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment to compile for"),
@@ -677,12 +712,14 @@ def compile(
         import strata.compile_output as compile_output
         import strata.compiler as compiler_mod
 
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
         console.print(f"[bold]Compiling for {strata_settings.active_env}...[/bold]")
         console.print()
 
         # Discover definitions
-        discovered = discovery.discover_definitions(strata_settings)
+        with console.status("[bold]Discovering definitions...[/bold]"):
+            discovered = discovery.discover_definitions(strata_settings)
 
         # Filter to feature tables (only things we compile)
         feature_tables = [d for d in discovered if d.kind == "feature_table"]
@@ -981,6 +1018,10 @@ def quality(
             name="--live", help="Run live validation against current data"
         ),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment"),
@@ -1000,12 +1041,17 @@ def quality(
         strata quality user_features --json     # JSON output for CI
     """
     try:
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
         reg = _get_registry(strata_settings)
         reg.initialize()
 
         if live:
-            result = _run_live_quality(table, strata_settings, reg)
+            if not json_output:
+                with console.status("[bold]Running live validation...[/bold]"):
+                    result = _run_live_quality(table, strata_settings, reg)
+            else:
+                result = _run_live_quality(table, strata_settings, reg)
         else:
             result = _load_quality_from_registry(table, reg)
 
@@ -1268,6 +1314,10 @@ def freshness(
         bool,
         cyclopts.Parameter(name="--json", help="Output results as JSON"),
     ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
     env_name: Annotated[
         str | None,
         cyclopts.Parameter(name="--env", help="Environment"),
@@ -1290,16 +1340,22 @@ def freshness(
     try:
         import strata.freshness as freshness_mod
 
+        _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
         reg = _get_registry(strata_settings)
         reg.initialize()
 
         # Discover feature tables
-        discovered = discovery.discover_definitions(strata_settings)
+        if not json_output:
+            with console.status("[bold]Discovering definitions...[/bold]"):
+                discovered = discovery.discover_definitions(strata_settings)
+        else:
+            discovered = discovery.discover_definitions(strata_settings)
         feature_tables = [d.obj for d in discovered if d.kind == "feature_table"]
 
         if not feature_tables:
-            console.print("[dim]No feature tables found[/dim]")
+            if not json_output:
+                console.print("[dim]No feature tables found[/dim]")
             return
 
         # Get latest build record for each table
