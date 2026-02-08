@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import time
+from datetime import datetime, timezone
+
 import strata.backends.sqlite as sqlite
 import strata.registry as registry
 
@@ -327,3 +330,261 @@ class TestSqliteRegistryMeta:
 
         reg.delete_object("entity", "user", applied_by="test@host")
         assert reg.get_meta("serial") == "2"
+
+
+class TestSqliteRegistryQualityResults:
+    """Tests for SqliteRegistry quality result persistence."""
+
+    def test_put_and_get_quality_result(self, tmp_path):
+        """Can store and retrieve a quality result."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        result = registry.QualityResultRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            passed=True,
+            has_warnings=False,
+            rows_checked=1000,
+            results_json='{"fields": []}',
+            build_id=None,
+        )
+        reg.put_quality_result(result)
+
+        results = reg.get_quality_results("user_features")
+        assert len(results) == 1
+        assert results[0].id is not None
+        assert results[0].table_name == "user_features"
+        assert results[0].passed is True
+        assert results[0].has_warnings is False
+        assert results[0].rows_checked == 1000
+        assert results[0].results_json == '{"fields": []}'
+
+    def test_get_quality_results_ordering(self, tmp_path):
+        """Quality results are returned newest first."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        t1 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        t2 = datetime(2026, 1, 2, 12, 0, 0, tzinfo=timezone.utc)
+        t3 = datetime(2026, 1, 3, 12, 0, 0, tzinfo=timezone.utc)
+
+        for t, passed in [(t1, True), (t2, False), (t3, True)]:
+            reg.put_quality_result(
+                registry.QualityResultRecord(
+                    id=None,
+                    timestamp=t,
+                    table_name="user_features",
+                    passed=passed,
+                    has_warnings=False,
+                    rows_checked=100,
+                    results_json="{}",
+                )
+            )
+
+        results = reg.get_quality_results("user_features")
+        assert len(results) == 3
+        # Most recent first
+        assert results[0].timestamp == t3
+        assert results[1].timestamp == t2
+        assert results[2].timestamp == t1
+
+    def test_get_quality_results_limit(self, tmp_path):
+        """Quality results respect the limit parameter."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        for i in range(5):
+            reg.put_quality_result(
+                registry.QualityResultRecord(
+                    id=None,
+                    timestamp=datetime(2026, 1, i + 1, tzinfo=timezone.utc),
+                    table_name="user_features",
+                    passed=True,
+                    has_warnings=False,
+                    rows_checked=100,
+                    results_json="{}",
+                )
+            )
+
+        results = reg.get_quality_results("user_features", limit=2)
+        assert len(results) == 2
+
+    def test_quality_result_with_build_id(self, tmp_path):
+        """Quality results can reference a build record."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        result = registry.QualityResultRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            passed=True,
+            has_warnings=True,
+            rows_checked=500,
+            results_json='{"warnings": 2}',
+            build_id=42,
+        )
+        reg.put_quality_result(result)
+
+        results = reg.get_quality_results("user_features")
+        assert results[0].build_id == 42
+        assert results[0].has_warnings is True
+
+
+class TestSqliteRegistryBuildRecords:
+    """Tests for SqliteRegistry build record persistence."""
+
+    def test_put_and_get_build_record(self, tmp_path):
+        """Can store and retrieve a build record."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        record = registry.BuildRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            status="success",
+            row_count=1000,
+            duration_ms=1234.5,
+            data_timestamp_max="2026-01-15T00:00:00Z",
+        )
+        reg.put_build_record(record)
+
+        result = reg.get_latest_build("user_features")
+        assert result is not None
+        assert result.id is not None
+        assert result.table_name == "user_features"
+        assert result.status == "success"
+        assert result.row_count == 1000
+        assert result.duration_ms == 1234.5
+        assert result.data_timestamp_max == "2026-01-15T00:00:00Z"
+
+    def test_get_latest_build(self, tmp_path):
+        """Returns the most recent build record."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        t1 = datetime(2026, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+        t2 = datetime(2026, 1, 2, 12, 0, 0, tzinfo=timezone.utc)
+
+        for t, status in [(t1, "success"), (t2, "failed")]:
+            reg.put_build_record(
+                registry.BuildRecord(
+                    id=None,
+                    timestamp=t,
+                    table_name="user_features",
+                    status=status,
+                )
+            )
+
+        latest = reg.get_latest_build("user_features")
+        assert latest is not None
+        assert latest.status == "failed"
+        assert latest.timestamp == t2
+
+    def test_get_latest_build_none(self, tmp_path):
+        """Returns None when no builds exist for a table."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        result = reg.get_latest_build("nonexistent_table")
+        assert result is None
+
+    def test_get_build_records_by_table(self, tmp_path):
+        """Build records can be filtered by table name."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        for table in ["table_a", "table_b", "table_a"]:
+            reg.put_build_record(
+                registry.BuildRecord(
+                    id=None,
+                    timestamp=now,
+                    table_name=table,
+                    status="success",
+                )
+            )
+            # Small delay to ensure distinct timestamps
+            time.sleep(0.01)
+
+        results_a = reg.get_build_records(table_name="table_a")
+        assert len(results_a) == 2
+        assert all(r.table_name == "table_a" for r in results_a)
+
+        results_b = reg.get_build_records(table_name="table_b")
+        assert len(results_b) == 1
+
+    def test_get_build_records_all(self, tmp_path):
+        """Build records can be retrieved without table filter."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        for table in ["table_a", "table_b", "table_c"]:
+            reg.put_build_record(
+                registry.BuildRecord(
+                    id=None,
+                    timestamp=now,
+                    table_name=table,
+                    status="success",
+                )
+            )
+
+        all_records = reg.get_build_records()
+        assert len(all_records) == 3
+
+    def test_get_build_records_limit(self, tmp_path):
+        """Build records respect the limit parameter."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        for i in range(5):
+            reg.put_build_record(
+                registry.BuildRecord(
+                    id=None,
+                    timestamp=datetime(2026, 1, i + 1, tzinfo=timezone.utc),
+                    table_name="user_features",
+                    status="success",
+                )
+            )
+
+        results = reg.get_build_records(limit=3)
+        assert len(results) == 3
+
+    def test_build_record_optional_fields(self, tmp_path):
+        """Build records work with only required fields."""
+        db_path = tmp_path / "test.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        record = registry.BuildRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            status="skipped",
+        )
+        reg.put_build_record(record)
+
+        result = reg.get_latest_build("user_features")
+        assert result is not None
+        assert result.status == "skipped"
+        assert result.row_count is None
+        assert result.duration_ms is None
+        assert result.data_timestamp_max is None

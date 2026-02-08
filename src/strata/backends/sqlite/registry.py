@@ -90,6 +90,33 @@ class SqliteRegistry(base.BaseRegistry):
                 )
             """)
 
+            # Create quality_results table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS quality_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    table_name TEXT NOT NULL,
+                    passed INTEGER NOT NULL,
+                    has_warnings INTEGER NOT NULL,
+                    rows_checked INTEGER NOT NULL,
+                    results_json TEXT NOT NULL,
+                    build_id INTEGER
+                )
+            """)
+
+            # Create build_records table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS build_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    table_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    row_count INTEGER,
+                    duration_ms REAL,
+                    data_timestamp_max TEXT
+                )
+            """)
+
             # Set initial metadata if not exists
             cursor.execute("SELECT value FROM meta WHERE key = 'lineage'")
             if cursor.fetchone() is None:
@@ -310,6 +337,134 @@ class SqliteRegistry(base.BaseRegistry):
                     old_hash=row[5],
                     new_hash=row[6],
                     applied_by=row[7],
+                )
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
+    def put_quality_result(self, result: registry.QualityResultRecord) -> None:
+        """Store a quality validation result."""
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            timestamp = result.timestamp.isoformat()
+            cursor.execute(
+                "INSERT INTO quality_results (timestamp, table_name, passed, has_warnings, rows_checked, results_json, build_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    timestamp,
+                    result.table_name,
+                    int(result.passed),
+                    int(result.has_warnings),
+                    result.rows_checked,
+                    result.results_json,
+                    result.build_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_quality_results(
+        self, table_name: str, limit: int = 10
+    ) -> list[registry.QualityResultRecord]:
+        """Get recent quality results for a table."""
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, timestamp, table_name, passed, has_warnings, rows_checked, results_json, build_id FROM quality_results WHERE table_name = ? ORDER BY timestamp DESC LIMIT ?",
+                (table_name, limit),
+            )
+            rows = cursor.fetchall()
+            return [
+                registry.QualityResultRecord(
+                    id=row[0],
+                    timestamp=datetime.fromisoformat(row[1]),
+                    table_name=row[2],
+                    passed=bool(row[3]),
+                    has_warnings=bool(row[4]),
+                    rows_checked=row[5],
+                    results_json=row[6],
+                    build_id=row[7],
+                )
+                for row in rows
+            ]
+        finally:
+            conn.close()
+
+    def put_build_record(self, record: registry.BuildRecord) -> None:
+        """Store a build execution record."""
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            timestamp = record.timestamp.isoformat()
+            cursor.execute(
+                "INSERT INTO build_records (timestamp, table_name, status, row_count, duration_ms, data_timestamp_max) VALUES (?, ?, ?, ?, ?, ?)",
+                (
+                    timestamp,
+                    record.table_name,
+                    record.status,
+                    record.row_count,
+                    record.duration_ms,
+                    record.data_timestamp_max,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_latest_build(self, table_name: str) -> registry.BuildRecord | None:
+        """Get the most recent build record for a table."""
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, timestamp, table_name, status, row_count, duration_ms, data_timestamp_max FROM build_records WHERE table_name = ? ORDER BY timestamp DESC LIMIT 1",
+                (table_name,),
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return None
+            return registry.BuildRecord(
+                id=row[0],
+                timestamp=datetime.fromisoformat(row[1]),
+                table_name=row[2],
+                status=row[3],
+                row_count=row[4],
+                duration_ms=row[5],
+                data_timestamp_max=row[6],
+            )
+        finally:
+            conn.close()
+
+    def get_build_records(
+        self, table_name: str | None = None, limit: int = 10
+    ) -> list[registry.BuildRecord]:
+        """Get recent build records, optionally filtered by table."""
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            if table_name is not None:
+                cursor.execute(
+                    "SELECT id, timestamp, table_name, status, row_count, duration_ms, data_timestamp_max FROM build_records WHERE table_name = ? ORDER BY timestamp DESC LIMIT ?",
+                    (table_name, limit),
+                )
+            else:
+                cursor.execute(
+                    "SELECT id, timestamp, table_name, status, row_count, duration_ms, data_timestamp_max FROM build_records ORDER BY timestamp DESC LIMIT ?",
+                    (limit,),
+                )
+            rows = cursor.fetchall()
+            return [
+                registry.BuildRecord(
+                    id=row[0],
+                    timestamp=datetime.fromisoformat(row[1]),
+                    table_name=row[2],
+                    status=row[3],
+                    row_count=row[4],
+                    duration_ms=row[5],
+                    data_timestamp_max=row[6],
                 )
                 for row in rows
             ]
