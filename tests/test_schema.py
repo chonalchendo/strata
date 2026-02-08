@@ -1,3 +1,5 @@
+import pydantic as pdt
+import pytest
 
 import strata.core as core
 
@@ -47,3 +49,21 @@ class TestField:
         assert field.ge == 0
         assert field.le == 100
         assert field.not_null is True
+
+
+class TestFieldSeverity:
+    def test_field_severity_default_error(self):
+        field = core.Field(dtype="float64")
+        assert field.severity == "error"
+
+    def test_field_severity_warn(self):
+        field = core.Field(dtype="float64", severity="warn")
+        assert field.severity == "warn"
+
+    def test_field_severity_error_explicit(self):
+        field = core.Field(dtype="float64", severity="error")
+        assert field.severity == "error"
+
+    def test_field_severity_invalid(self):
+        with pytest.raises(pdt.ValidationError):
+            core.Field(dtype="float64", severity="bad")
