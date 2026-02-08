@@ -8,12 +8,13 @@ from __future__ import annotations
 import getpass
 import socket
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Annotated
 
 if TYPE_CHECKING:
     import strata.build as build_mod
+    import strata.freshness as freshness_mod
     import strata.quality as quality_mod
 
 import cyclopts
@@ -358,6 +359,13 @@ def build(
             help="Drop and rebuild all tables from scratch",
         ),
     ] = False,
+    skip_quality: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name="--skip-quality",
+            help="Skip data quality validation during build",
+        ),
+    ] = False,
     start: Annotated[
         str | None,
         cyclopts.Parameter(
@@ -382,12 +390,14 @@ def build(
     Operational overrides:
       --full-refresh drops and rebuilds tables (ignores table write_mode).
       --start / --end builds for a specific date range (backfill).
+      --skip-quality bypasses data quality validation.
 
     Examples:
         strata build                         # Build all tables
         strata build user_transactions       # Build specific table + deps
         strata build --schedule hourly       # Build hourly-scheduled tables
         strata build --full-refresh          # Drop and rebuild everything
+        strata build --skip-quality          # Build without validation
         strata build --start 2024-01-01 --end 2024-02-01  # Backfill range
     """
     try:
@@ -418,6 +428,8 @@ def build(
             console.print(f"  Schedule: {schedule}")
         if full_refresh:
             console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
+        if skip_quality:
+            console.print("  Quality: [yellow]skipped[/yellow]")
         if start_dt and end_dt:
             console.print(f"  Date range: {start} to {end}")
         console.print()
@@ -443,9 +455,12 @@ def build(
                 )
                 return
 
-        # Build using settings backend (NOT manually constructed)
+        # Build using settings backend and registry
         env_cfg = strata_settings.active_environment
-        engine = build_mod.BuildEngine(backend=env_cfg.backend)
+        engine = build_mod.BuildEngine(
+            backend=env_cfg.backend,
+            registry=env_cfg.registry,
+        )
 
         targets = [table] if table else None
         t0 = time.perf_counter()
@@ -456,12 +471,13 @@ def build(
             full_refresh=full_refresh,
             start=start_dt,
             end=end_dt,
+            skip_quality=skip_quality,
         )
 
         elapsed = time.perf_counter() - t0
 
         # Display results in Pulumi-style output
-        _render_build_results(result, elapsed)
+        _render_build_results(result, elapsed, skip_quality=skip_quality)
 
         # Exit non-zero on failure
         if not result.is_success:
@@ -485,7 +501,10 @@ def _parse_date(date_str: str) -> datetime:
 
 
 def _render_build_results(
-    result: build_mod.BuildResult, elapsed: float
+    result: build_mod.BuildResult,
+    elapsed: float,
+    *,
+    skip_quality: bool = False,
 ) -> None:
     """Render build results in Pulumi-style output."""
     import strata.build as build_mod
@@ -505,8 +524,18 @@ def _render_build_results(
                 if table_result.row_count is not None
                 else ""
             )
+            # Show validation status indicator
+            quality_indicator = ""
+            if table_result.validation_passed is True:
+                warn_n = table_result.validation_warnings
+                if warn_n > 0:
+                    warn_s = "s" if warn_n != 1 else ""
+                    quality_indicator = (
+                        f" [yellow]({warn_n} "
+                        f"warning{warn_s})[/yellow]"
+                    )
             console.print(
-                f"[green]\u2713[/green] {name}{rows}{duration}"
+                f"[green]\u2713[/green] {name}{rows}{duration}{quality_indicator}"
             )
         elif status == build_mod.BuildStatus.FAILED:
             error = f": {table_result.error}" if table_result.error else ""
@@ -529,6 +558,17 @@ def _render_build_results(
     total = len(result.table_results)
     summary = ", ".join(parts) if parts else "0 tables"
     console.print(f"[bold]Build complete:[/bold] {summary} ({total} total, {elapsed:.1f}s)")
+
+    # Quality summary
+    if skip_quality:
+        console.print("[dim]Quality: skipped (--skip-quality)[/dim]")
+    elif result.validation_count > 0:
+        quality_parts = [f"{result.validation_count} validated"]
+        if result.validation_warning_count > 0:
+            quality_parts.append(
+                f"[yellow]{result.validation_warning_count} warning(s)[/yellow]"
+            )
+        console.print(f"[dim]Quality: {', '.join(quality_parts)}[/dim]")
 
 
 @app.command
@@ -1110,6 +1150,198 @@ def _render_quality_json(
                 ],
             }
             for fr in result.field_results
+        ],
+    }
+
+    console.print(json_lib.dumps(output_data, indent=2))
+
+
+@app.command
+def freshness(
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
+    env_name: Annotated[
+        str | None,
+        cyclopts.Parameter(name="--env", help="Environment"),
+    ] = None,
+):
+    """Show freshness status of feature tables.
+
+    Compares build recency and data recency against SLA thresholds.
+    Tables with SLAs show pass/warn/error status. Tables without SLAs
+    are shown but always report "fresh".
+
+    Use --json for machine-readable output (CI pipelines).
+
+    Exit code is 1 when any table has error-severity staleness.
+
+    Examples:
+        strata freshness              # Rich table output
+        strata freshness --json       # JSON output for CI
+    """
+    try:
+        import strata.freshness as freshness_mod
+
+        strata_settings = settings.load_strata_settings(env=env_name)
+        reg = _get_registry(strata_settings)
+        reg.initialize()
+
+        # Discover feature tables
+        discovered = discovery.discover_definitions(strata_settings)
+        feature_tables = [d.obj for d in discovered if d.kind == "feature_table"]
+
+        if not feature_tables:
+            console.print("[dim]No feature tables found[/dim]")
+            return
+
+        # Get latest build record for each table
+        build_records: dict[str, reg_types.BuildRecord | None] = {}
+        for ft in feature_tables:
+            build_records[ft.name] = reg.get_latest_build(ft.name)
+
+        # Check freshness
+        result = freshness_mod.check_freshness(feature_tables, build_records)
+
+        if json_output:
+            _render_freshness_json(result)
+        else:
+            _render_freshness_results(result)
+
+        # Exit non-zero if any table has error-severity staleness
+        has_errors = any(t.status == "error" for t in result.tables)
+        if has_errors:
+            raise SystemExit(1)
+
+    except errors.StrataError as e:
+        _handle_error(e)
+        raise SystemExit(1)
+
+
+def _format_staleness(td: timedelta | None) -> str:
+    """Format a timedelta as a human-readable relative time string."""
+    if td is None:
+        return "-"
+
+    total_seconds = int(td.total_seconds())
+    if total_seconds < 0:
+        return "in the future"
+    if total_seconds < 60:
+        return f"{total_seconds}s ago"
+    if total_seconds < 3600:
+        minutes = total_seconds // 60
+        return f"{minutes}m ago"
+    if total_seconds < 86400:
+        hours = total_seconds // 3600
+        return f"{hours}h ago"
+    days = total_seconds // 86400
+    return f"{days}d ago"
+
+
+def _render_freshness_results(
+    result: "freshness_mod.FreshnessResult",
+) -> None:
+    """Render freshness results as a Rich table."""
+    from rich.table import Table as RichTable
+
+    console.print("[bold]Freshness Status[/bold]")
+    console.print()
+
+    rich_table = RichTable(show_header=True, header_style="bold")
+    rich_table.add_column("Table")
+    rich_table.add_column("Last Build")
+    rich_table.add_column("Data Freshness")
+    rich_table.add_column("SLA")
+    rich_table.add_column("Status")
+
+    fresh_count = 0
+    stale_count = 0
+    unknown_count = 0
+
+    for tf in result.tables:
+        # Format last build
+        last_build = _format_staleness(tf.build_staleness) if tf.build_staleness else "never"
+
+        # Format data freshness
+        data_freshness = _format_staleness(tf.data_staleness) if tf.data_staleness else "-"
+
+        # Format SLA
+        if tf.max_staleness is not None:
+            total_seconds = int(tf.max_staleness.total_seconds())
+            if total_seconds >= 86400:
+                sla_str = f"{total_seconds // 86400}d"
+            elif total_seconds >= 3600:
+                sla_str = f"{total_seconds // 3600}h"
+            elif total_seconds >= 60:
+                sla_str = f"{total_seconds // 60}m"
+            else:
+                sla_str = f"{total_seconds}s"
+        else:
+            sla_str = "-"
+
+        # Format status
+        if tf.status == "fresh":
+            status_str = "[green]fresh[/green]"
+            fresh_count += 1
+        elif tf.status == "warn":
+            status_str = "[yellow]warn[/yellow]"
+            stale_count += 1
+        elif tf.status == "error":
+            status_str = "[red]error[/red]"
+            stale_count += 1
+        else:
+            status_str = "[dim]unknown[/dim]"
+            unknown_count += 1
+
+        rich_table.add_row(
+            tf.table_name,
+            last_build,
+            data_freshness,
+            sla_str,
+            status_str,
+        )
+
+    console.print(rich_table)
+    console.print()
+
+    # Summary line
+    parts = []
+    if fresh_count:
+        parts.append(f"[green]{fresh_count} fresh[/green]")
+    if stale_count:
+        parts.append(f"[red]{stale_count} stale[/red]")
+    if unknown_count:
+        parts.append(f"[dim]{unknown_count} unknown[/dim]")
+
+    total = len(result.tables)
+    summary = ", ".join(parts) if parts else "0 tables"
+    console.print(f"{summary} ({total} total)")
+
+
+def _render_freshness_json(
+    result: "freshness_mod.FreshnessResult",
+) -> None:
+    """Output freshness results as machine-readable JSON."""
+    import json as json_lib
+
+    output_data = {
+        "has_stale": result.has_stale,
+        "has_unknown": result.has_unknown,
+        "tables": [
+            {
+                "table": tf.table_name,
+                "last_build_at": tf.last_build_at.isoformat() if tf.last_build_at else None,
+                "data_timestamp_max": tf.data_timestamp_max.isoformat() if tf.data_timestamp_max else None,
+                "build_staleness_seconds": tf.build_staleness.total_seconds() if tf.build_staleness else None,
+                "data_staleness_seconds": tf.data_staleness.total_seconds() if tf.data_staleness else None,
+                "max_staleness_seconds": tf.max_staleness.total_seconds() if tf.max_staleness else None,
+                "status": tf.status,
+                "severity": tf.severity,
+                "row_count": tf.row_count,
+                "min_row_count": tf.min_row_count,
+            }
+            for tf in result.tables
         ],
     }
 
