@@ -8,9 +8,17 @@ import pydantic as pdt
 import strata.errors as errors
 import strata.sources as sources
 
+DType = Literal[
+    "int64", "int32", "float64", "float32", "string", "bool", "datetime", "date",
+]
+
+AggFunction = Literal["sum", "count", "avg", "min", "max", "count_distinct"]
+
 
 class StrataBaseModel(pdt.BaseModel):
-    pass
+    model_config = pdt.ConfigDict(
+        arbitrary_types_allowed=True,
+    )
 
 
 class FeatureTable(StrataBaseModel):
@@ -54,6 +62,9 @@ class FeatureTable(StrataBaseModel):
     merge_keys: list[str] | None = None  # None = use entity.join_keys
     lookback: timedelta | None = None  # Late-arriving data window
 
+    # Online serving
+    online: bool = False  # Declares intent to sync to online store via `strata publish`
+
     # Quality
     sla: "checks.SLA | None" = None
     sample_pct: float | None = None  # Percentage of rows to validate (1-100)
@@ -63,10 +74,6 @@ class FeatureTable(StrataBaseModel):
     _transforms: list[Callable] = pdt.PrivateAttr(default_factory=list)
     _aggregates: list[dict] = pdt.PrivateAttr(default_factory=list)
     _custom_features: list[dict] = pdt.PrivateAttr(default_factory=list)
-
-    model_config = pdt.ConfigDict(
-        arbitrary_types_allowed=True,
-    )
 
     @pdt.model_validator(mode="after")
     def validate_sample_pct(self) -> "FeatureTable":
@@ -96,9 +103,14 @@ class FeatureTable(StrataBaseModel):
         features = object.__getattribute__(self, "_features")
         if name in features:
             return features[name]
+        available = list(features.keys())
+        hint = (
+            f"Available features: {available}"
+            if available
+            else "Define features using aggregate() or @feature decorator."
+        )
         raise AttributeError(
-            f"FeatureTable '{self.name}' has no feature '{name}'. "
-            f"Define features using aggregate() or @feature decorator."
+            f"FeatureTable '{self.name}' has no feature '{name}'. {hint}"
         )
 
     @property
@@ -195,7 +207,7 @@ class FeatureTable(StrataBaseModel):
         name: str,
         field: Field,
         column: str,
-        function: str,
+        function: AggFunction,
         window: timedelta,
     ) -> Feature:
         """Define a windowed aggregation feature.
@@ -209,8 +221,6 @@ class FeatureTable(StrataBaseModel):
                 window=timedelta(days=90),
             )
 
-        Supported functions: sum, count, avg, min, max, count_distinct
-
         Args:
             name: Feature name
             field: Field definition with dtype and validation
@@ -221,6 +231,13 @@ class FeatureTable(StrataBaseModel):
         Returns:
             Feature reference that can be used in Dataset
         """
+        valid = {"sum", "count", "avg", "min", "max", "count_distinct"}
+        if function not in valid:
+            raise errors.StrataError(
+                context=f"Defining aggregate '{name}' on FeatureTable '{self.name}'",
+                cause=f"Unsupported aggregation function '{function}'",
+                fix=f"Use one of: {', '.join(sorted(valid))}.",
+            )
         # Store aggregation definition for later compilation
         agg_def = {
             "name": name,
@@ -446,7 +463,7 @@ class Feature(StrataBaseModel):
 
 class Field(StrataBaseModel):
     # Identity
-    dtype: str  # "int64", "float64", "string", "bool", "datetime"
+    dtype: DType
     description: str | None = None  # Human-readable description
 
     # Range constraints

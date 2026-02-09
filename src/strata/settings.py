@@ -16,6 +16,7 @@ import pydantic_settings as pdts
 
 import strata.errors as errors
 import strata.backends as backends
+import strata.serving as serving
 
 
 class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
@@ -106,6 +107,7 @@ class EnvironmentSettings(Settings):
     catalog: str | None = None
     registry: backends.RegistryKind = pdt.Field(..., discriminator="kind")
     backend: backends.BackendKind = pdt.Field(..., discriminator="kind")
+    online_store: serving.OnlineStoreKind | None = None
 
 
 class StrataSettings(Settings):
