@@ -1,13 +1,8 @@
-import strata as st
-import strata.backends.local.storage as local_storage
+"""Air quality source and feature tables for Edinburgh St-Leonards monitoring station."""
 
-# historical_url = (
-#     "https://aqicn.org/historical/#city:united-kingdom/edinburgh-st-leonards"
-# )
-# aqicn_url = "https://api.waqi.info/feed/@3176"
-# country = "United Kingdom"
-# city = "Edinburgh"
-# street = "St-Leonards"
+from datetime import timedelta
+
+import strata as st
 
 street = st.Entity(
     name="Street",
@@ -29,7 +24,10 @@ class AirQualitySchema(st.Schema):
     country = st.Field(description="Country of the measurement", dtype="string")
     city = st.Field(description="City of the measurement", dtype="string")
     street = st.Field(description="Street of the measurement", dtype="string")
-    pm25 = st.Field(description="PM2.5 concentration", dtype="float", ge=0, le=500)
+    pm25 = st.Field(description="PM2.5 concentration", dtype="float64", ge=0, le=500)
+    pm10 = st.Field(description="PM10 concentration", dtype="float64", ge=0, le=600)
+    no2 = st.Field(description="NO2 concentration", dtype="float64", ge=0)
+    o3 = st.Field(description="Ozone concentration", dtype="float64", ge=0)
 
 
 air_quality_st = st.SourceTable(
@@ -39,4 +37,39 @@ air_quality_st = st.SourceTable(
     entity=street,
     timestamp_field="date",
     schema=AirQualitySchema,
+)
+
+# -- Feature table: rolling PM2.5 aggregates for prediction modelling --
+
+air_quality_ft = st.FeatureTable(
+    name="air_quality_features",
+    description="Rolling air quality aggregates for PM2.5 prediction",
+    source=air_quality_source,
+    entity=street,
+    timestamp_field="date",
+    schedule="daily",
+)
+
+pm25 = air_quality_ft.aggregate(
+    name="pm25",
+    field=st.Field(dtype="float64", description="Latest PM2.5 reading"),
+    column="pm25",
+    function="avg",
+    window=timedelta(days=1),
+)
+
+pm25_7d_avg = air_quality_ft.aggregate(
+    name="pm25_7d_avg",
+    field=st.Field(dtype="float64", description="7-day rolling average PM2.5"),
+    column="pm25",
+    function="avg",
+    window=timedelta(days=7),
+)
+
+pm25_30d_avg = air_quality_ft.aggregate(
+    name="pm25_30d_avg",
+    field=st.Field(dtype="float64", description="30-day rolling average PM2.5"),
+    column="pm25",
+    function="avg",
+    window=timedelta(days=30),
 )
