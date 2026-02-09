@@ -1,0 +1,21 @@
+name: ccfraud-project
+default_env: dev
+
+schedules:
+  - hourly
+  - daily
+
+environments:
+  dev:
+    catalog: ccfraud_dev
+    registry:
+      kind: sqlite
+      path: .strata/dev/registry.db
+    backend:
+      kind: duckdb
+      path: .strata/dev/lakehouse
+      catalog: ccfraud_dev
+      extensions: [parquet, json]
+    online_store:
+      kind: sqlite
+      path: .strata/dev/online.db

@@ -1,0 +1,8 @@
+# Generated data
+data/
+
+# Trained models
+models/
+
+# Strata runtime artifacts
+.strata/
