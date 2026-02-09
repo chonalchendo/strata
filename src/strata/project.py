@@ -1,15 +1,21 @@
 """Project handle for Strata feature store connections.
 
 Provides strata.connect() entry point and BoundDataset for offline feature retrieval
-with point-in-time joins. The StrataProject holds live backend/registry/online_store
-connections; BoundDataset uses them to execute read_features().
+with point-in-time joins and online feature lookup. The StrataProject holds live
+backend/registry/online_store connections; BoundDataset uses them to execute
+read_features() (offline) and lookup_features() (online).
 
 Usage:
     import strata
 
     project = strata.connect()
     ds = project.get_dataset("fraud_detection")
+
+    # Offline: PIT-correct training data
     features = ds.read_features(start="2024-01-01", end="2024-04-01")
+
+    # Online: real-time feature lookup
+    vector = ds.lookup_features({"user_id": "123"})
 """
 
 from __future__ import annotations
@@ -382,6 +388,80 @@ class BoundDataset:
             result = result.rename_columns(new_names)
 
         return result
+
+    def lookup_features(
+        self,
+        entity_keys: dict[str, str],
+    ) -> pa.Table:
+        """Look up pre-computed features for a single entity from the online store.
+
+        Returns the latest feature vector for the given entity key. Features
+        must have been published via ``strata publish`` first.
+
+        Args:
+            entity_keys: Entity key dict (e.g., {"user_id": "123"}).
+
+        Returns:
+            pa.Table with 1 row containing feature columns + _feature_timestamp.
+            Returns nulls for all features if entity is not found (consistent
+            with Feast/Tecton -- missing entities return nulls, not errors).
+
+        Raises:
+            StrataError: If no online store is configured.
+        """
+        if self._project._online_store is None:
+            raise errors.StrataError(
+                context="Looking up features",
+                cause="No online store configured",
+                fix="Add online_store section to strata.yaml",
+            )
+
+        online_store = self._project._online_store
+        online_store.initialize()
+
+        # Group features by their source table
+        table_features: dict[str, list[str]] = {}
+        for feature in self._dataset.features:
+            table_name = feature.table_name
+            if table_name not in table_features:
+                table_features[table_name] = []
+            table_features[table_name].append(feature.name)
+
+        # Read features from online store for each table
+        table_results: dict[str, pa.Table] = {}
+        for table_name in table_features:
+            result = online_store.read_features(table_name, entity_keys)
+            table_results[table_name] = result
+
+        # Build output column mapping
+        output_columns = _build_output_column_map(self._dataset, "_feature_timestamp")
+
+        # Combine feature columns from all tables into a single row
+        combined: dict[str, list] = {}
+        oldest_timestamp: str | None = None
+
+        for table_name, feature_names in table_features.items():
+            result = table_results[table_name]
+            has_data = result.num_rows > 0
+
+            for feat_name in feature_names:
+                output_name = output_columns.get(feat_name, feat_name)
+                if has_data and feat_name in result.column_names:
+                    combined[output_name] = [result.column(feat_name).to_pylist()[0]]
+                else:
+                    combined[output_name] = [None]
+
+            # Track oldest timestamp (conservative freshness)
+            if has_data and "_feature_timestamp" in result.column_names:
+                ts = result.column("_feature_timestamp").to_pylist()[0]
+                if ts is not None:
+                    if oldest_timestamp is None or ts < oldest_timestamp:
+                        oldest_timestamp = ts
+
+        # Add _feature_timestamp column
+        combined["_feature_timestamp"] = [oldest_timestamp]
+
+        return pa.table(combined)
 
     def _build_implicit_spine(
         self,
