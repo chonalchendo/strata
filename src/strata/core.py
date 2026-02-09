@@ -385,6 +385,7 @@ class Dataset(StrataBaseModel):
     name: str
     description: str | None = None
     features: list[Feature]
+    label: Feature | None = None
     prefix_features: bool = True
     owner: str | None = None
     tags: dict[str, str] | None = None
