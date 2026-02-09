@@ -435,6 +435,13 @@ def build(
             help="Skip data quality validation during build",
         ),
     ] = False,
+    publish_flag: Annotated[
+        bool,
+        cyclopts.Parameter(
+            name="--publish",
+            help="Publish online=True tables to online store after build",
+        ),
+    ] = False,
     start: Annotated[
         str | None,
         cyclopts.Parameter(
@@ -468,6 +475,7 @@ def build(
       --full-refresh drops and rebuilds tables (ignores table write_mode).
       --start / --end builds for a specific date range (backfill).
       --skip-quality bypasses data quality validation.
+      --publish syncs online=True tables to online store after build.
 
     Examples:
         strata build                         # Build all tables
@@ -475,6 +483,7 @@ def build(
         strata build --schedule hourly       # Build hourly-scheduled tables
         strata build --full-refresh          # Drop and rebuild everything
         strata build --skip-quality          # Build without validation
+        strata build --publish               # Build then publish online tables
         strata build --start 2024-01-01 --end 2024-02-01  # Backfill range
     """
     try:
@@ -509,6 +518,8 @@ def build(
                 console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
             if skip_quality:
                 console.print("  Quality: [yellow]skipped[/yellow]")
+            if publish_flag:
+                console.print("  Publish: [green]online tables[/green]")
             if start_dt and end_dt:
                 console.print(f"  Date range: {start} to {end}")
             console.print()
@@ -566,6 +577,14 @@ def build(
         # Exit non-zero on failure
         if not result.is_success:
             raise SystemExit(1)
+
+        # Publish if requested (after successful build)
+        if publish_flag:
+            _publish_tables(
+                strata_settings,
+                feature_tables,
+                json_output=json_output,
+            )
 
     except errors.StrataError as e:
         _handle_error(e, json_mode=json_output)
@@ -1493,3 +1512,202 @@ def _render_freshness_json(
     }
 
     console.print(json_lib.dumps(output_data, indent=2))
+
+
+@app.command
+def publish(
+    table: Annotated[
+        str | None,
+        cyclopts.Parameter(
+            help="Specific table to publish (publishes all online=True tables if not specified)"
+        ),
+    ] = None,
+    json_output: Annotated[
+        bool,
+        cyclopts.Parameter(name="--json", help="Output results as JSON"),
+    ] = False,
+    verbose: Annotated[
+        bool,
+        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+    ] = False,
+    env_name: Annotated[
+        str | None,
+        cyclopts.Parameter(name="--env", help="Environment"),
+    ] = None,
+):
+    """Sync features from offline store to online store.
+
+    Reads the latest feature values per entity from the offline store
+    (Parquet/Delta) and writes them to the online store (SQLite) for
+    low-latency serving via Dataset.lookup_features().
+
+    Only tables with online=True are published. Use a specific table
+    name to publish just that table.
+
+    Examples:
+        strata publish                   # Publish all online=True tables
+        strata publish user_features     # Publish specific table
+        strata publish --json            # JSON output for CI
+    """
+    try:
+        _configure_verbose(verbose)
+        strata_settings = settings.load_strata_settings(env=env_name)
+
+        # Discover feature tables
+        discovered = _discover(strata_settings, quiet=json_output)
+        feature_tables = [
+            d.obj for d in discovered if d.kind == "feature_table"
+        ]
+
+        _publish_tables(
+            strata_settings,
+            feature_tables,
+            target_table=table,
+            json_output=json_output,
+        )
+
+    except errors.StrataError as e:
+        _handle_error(e, json_mode=json_output)
+        raise SystemExit(1)
+
+
+def _publish_tables(
+    strata_settings: settings.StrataSettings,
+    feature_tables: list,
+    *,
+    target_table: str | None = None,
+    json_output: bool = False,
+) -> None:
+    """Publish online=True tables from offline store to online store.
+
+    Shared helper used by both ``strata publish`` and ``strata build --publish``.
+
+    Args:
+        strata_settings: Loaded project settings.
+        feature_tables: All discovered feature tables.
+        target_table: Specific table to publish (None = all online=True).
+        json_output: Whether to output JSON instead of Rich.
+    """
+    import strata.serving as serving
+
+    env_cfg = strata_settings.active_environment
+    online_store: serving.OnlineStoreKind | None = env_cfg.online_store
+
+    if online_store is None:
+        raise errors.StrataError(
+            context="Publishing features to online store",
+            cause="No online store configured",
+            fix="Add online_store section to strata.yaml (e.g., online_store: {kind: sqlite, path: .strata/online.db}).",
+        )
+
+    online_store.initialize()
+    backend = env_cfg.backend
+
+    # Filter to target table or online=True tables
+    if target_table is not None:
+        tables_to_publish = [
+            ft for ft in feature_tables if ft.name == target_table
+        ]
+        if not tables_to_publish:
+            raise errors.StrataError(
+                context="Publishing features to online store",
+                cause="Table '{}' not found".format(target_table),
+                fix="Check the table name. Available: {}".format(
+                    ", ".join(ft.name for ft in feature_tables) or "(none)"
+                ),
+            )
+        # Warn if table is not online=True but still publish it
+        if not tables_to_publish[0].online and not json_output:
+            console.print(
+                "[yellow]Warning:[/yellow] Table '{}' does not have online=True, publishing anyway.".format(
+                    target_table
+                )
+            )
+    else:
+        tables_to_publish = [ft for ft in feature_tables if ft.online]
+
+    if not tables_to_publish:
+        if json_output:
+            console.print(json_lib.dumps({"published": 0, "tables": []}, indent=2))
+        else:
+            console.print("[dim]No online tables found. Set online=True on FeatureTable to enable publishing.[/dim]")
+        return
+
+    if not json_output:
+        console.print("[bold]Publishing to online store...[/bold]")
+        console.print()
+
+    t0_total = time.perf_counter()
+    results: list[dict] = []
+
+    for ft in tables_to_publish:
+        t0 = time.perf_counter()
+
+        if not backend.table_exists(ft.name):
+            if not json_output:
+                console.print(
+                    "  [yellow]![/yellow] {} [dim](no built data, skipped)[/dim]".format(ft.name)
+                )
+            results.append({
+                "table": ft.name,
+                "status": "skipped",
+                "reason": "no built data",
+                "entities": 0,
+                "duration_ms": 0,
+            })
+            continue
+
+        data = backend.read_table(ft.name)
+        entity_columns = ft.entity.join_keys
+        timestamp_column = ft.timestamp_field
+
+        online_store.write_batch(
+            table_name=ft.name,
+            data=data,
+            entity_columns=entity_columns,
+            timestamp_column=timestamp_column,
+        )
+
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        # Count unique entities published
+        entity_count = data.num_rows
+        if data.num_rows > 0:
+            import pyarrow.compute as pc
+
+            if len(entity_columns) == 1:
+                entity_count = pc.count_distinct(data.column(entity_columns[0])).as_py()
+            else:
+                entity_count = data.num_rows  # Approximate for composite keys
+
+        if not json_output:
+            console.print(
+                "  [green]\u2713[/green] {} [{:,} entities] ({:.0f}ms)".format(
+                    ft.name, entity_count, elapsed_ms,
+                )
+            )
+
+        results.append({
+            "table": ft.name,
+            "status": "published",
+            "entities": entity_count,
+            "duration_ms": round(elapsed_ms, 1),
+        })
+
+    elapsed_total = time.perf_counter() - t0_total
+    published_count = sum(1 for r in results if r["status"] == "published")
+
+    if json_output:
+        publish_output = {
+            "published": published_count,
+            "elapsed_seconds": round(elapsed_total, 2),
+            "tables": results,
+        }
+        console.print(json_lib.dumps(publish_output, indent=2))
+    else:
+        console.print()
+        console.print(
+            "[bold]Published {} table(s) in {:.1f}s[/bold]".format(
+                published_count, elapsed_total,
+            )
+        )
