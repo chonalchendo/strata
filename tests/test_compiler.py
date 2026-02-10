@@ -6,6 +6,7 @@ import pytest
 
 import strata.compiler as compiler
 import strata.core as core
+import strata.errors as errors
 import strata.sources as sources
 from strata.backends.local.storage import LocalSourceConfig
 
@@ -82,7 +83,9 @@ class TestCompiledQuery:
         assert result.source_tables == ["transactions"]
         assert result.ibis_expr is not None
 
-    def test_compiled_query_is_frozen(self, feature_table, ibis_compiler, source_schema):
+    def test_compiled_query_is_frozen(
+        self, feature_table, ibis_compiler, source_schema
+    ):
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),
@@ -129,7 +132,7 @@ class TestAggregateCompilation:
 
         assert "SUM" in result.sql
         assert "spend_90d" in result.sql
-        assert "GROUP BY" in result.sql
+        assert "PARTITION BY" in result.sql
         assert "user_id" in result.sql
 
     def test_multiple_aggregates(self, feature_table, ibis_compiler, source_schema):
@@ -154,10 +157,10 @@ class TestAggregateCompilation:
         assert "spend_90d" in result.sql
         assert "txn_count_30d" in result.sql
 
-    def test_different_windows_use_filter(
+    def test_different_windows_use_range(
         self, feature_table, ibis_compiler, source_schema
     ):
-        """Aggregates with different windows should use FILTER(WHERE)."""
+        """Aggregates with different windows should use RANGE BETWEEN."""
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),
@@ -174,7 +177,7 @@ class TestAggregateCompilation:
         )
         result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
 
-        assert "FILTER" in result.sql
+        assert "RANGE BETWEEN" in result.sql
         assert "90" in result.sql
         assert "30" in result.sql
 
@@ -235,18 +238,15 @@ class TestAggregateCompilation:
 
         assert sql_fragment in result.sql
 
-    def test_unsupported_function_raises(
-        self, feature_table, ibis_compiler, source_schema
-    ):
-        feature_table.aggregate(
-            name="bad",
-            field=core.Field(dtype="float64"),
-            column="amount",
-            function="median",
-            window=timedelta(days=30),
-        )
-        with pytest.raises(ValueError, match="Unsupported aggregation function"):
-            ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+    def test_unsupported_function_raises(self, feature_table):
+        with pytest.raises(errors.StrataError, match="Unsupported aggregation function"):
+            feature_table.aggregate(
+                name="bad",
+                field=core.Field(dtype="float64"),
+                column="amount",
+                function="median",
+                window=timedelta(days=30),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -272,9 +272,7 @@ class TestCustomFeatureCompilation:
         def is_big(t):
             return t.amount > 100
 
-        @feature_table.feature(
-            name="amount_doubled", field=core.Field(dtype="float64")
-        )
+        @feature_table.feature(name="amount_doubled", field=core.Field(dtype="float64"))
         def amount_doubled(t):
             return t.amount * 2
 
@@ -290,9 +288,7 @@ class TestCustomFeatureCompilation:
 
 
 class TestTransformCompilation:
-    def test_transform_filters_data(
-        self, feature_table, ibis_compiler, source_schema
-    ):
+    def test_transform_filters_data(self, feature_table, ibis_compiler, source_schema):
         @feature_table.transform()
         def filter_valid(t):
             return t.filter(t.amount > 0)
@@ -428,9 +424,7 @@ class TestDAGCompilation:
 
 
 class TestSchemaInference:
-    def test_infer_schema_from_aggregates(
-        self, feature_table, ibis_compiler
-    ):
+    def test_infer_schema_from_aggregates(self, feature_table, ibis_compiler):
         """Compiler should infer schema from aggregate definitions."""
         feature_table.aggregate(
             name="spend_90d",
@@ -445,9 +439,7 @@ class TestSchemaInference:
         assert "SUM" in result.sql
         assert "spend_90d" in result.sql
 
-    def test_infer_schema_includes_join_keys(
-        self, feature_table, ibis_compiler
-    ):
+    def test_infer_schema_includes_join_keys(self, feature_table, ibis_compiler):
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),

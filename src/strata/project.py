@@ -502,6 +502,7 @@ class BoundDataset:
             )
 
         data = self._project._backend.read_table(spine_table_name)
+
         ts_col = table_def.timestamp_field
         entity_keys = table_def.entity.join_keys
 

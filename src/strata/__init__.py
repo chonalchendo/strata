@@ -1,3 +1,5 @@
+from . import _compat as _compat  # noqa: F401  -- Python 3.14 sqlglot workaround
+
 from .core import AggFunction, Dataset, DType, Entity, Feature, FeatureTable, Field, Schema, SourceTable
 from .backends.local import LocalSourceConfig
 from .project import connect

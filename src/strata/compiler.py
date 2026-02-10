@@ -161,23 +161,26 @@ class IbisCompiler:
         # Timestamp field
         schema[table.timestamp_field] = dt.timestamp
 
-        # Aggregate source columns -- infer type from field dtype if available
+        # Aggregate source columns -- default to float64 (most permissive
+        # numeric type). The field dtype describes the aggregate *output*,
+        # not the source column, so we can't use it to infer the source type.
         for agg_def in table._aggregates:
             column = agg_def["column"]
-            field = agg_def["field"]
             if column not in schema:
-                schema[column] = _DTYPE_MAP.get(field.dtype, dt.float64)
+                schema[column] = dt.float64
 
         return schema
 
     def _apply_aggregates(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
-        """Compile aggregate() definitions to GROUP BY with FILTER.
+        """Compile aggregate() definitions using trailing range windows.
 
-        Uses conditional aggregation (FILTER WHERE) to support
-        multiple aggregates with different time windows in a single query.
+        Uses Ibis trailing_range_window to compute rolling aggregates per
+        (entity, timestamp) combination. This produces one output row per
+        source row with correct rolling aggregate values, enabling PIT
+        joins for offline training and time-series builds.
         """
         group_keys = list(table.entity.join_keys)
-        agg_exprs: dict[str, ir.Column] = {}
+        ts_field = table.timestamp_field
 
         for agg_def in table._aggregates:
             name: str = agg_def["name"]
@@ -195,12 +198,15 @@ class IbisCompiler:
             ibis_method = _AGG_FUNCTIONS[function]
             col_ref = expr[column]
 
-            # Build time window filter
-            ts_col = expr[table.timestamp_field]
-            window_filter = ts_col >= ibis.now() - ibis.interval(days=window.days)
+            # Trailing range window: aggregate over the last N days per entity
+            win = ibis.trailing_range_window(
+                preceding=ibis.interval(days=window.days),
+                order_by=ts_field,
+                group_by=group_keys,
+            )
+            agg_col = getattr(col_ref, ibis_method)().over(win)
+            expr = expr.mutate(**{name: agg_col})
 
-            # Call the ibis aggregation method with a where clause
-            agg_col = getattr(col_ref, ibis_method)(where=window_filter)
-            agg_exprs[name] = agg_col
-
-        return expr.group_by(group_keys).agg(**agg_exprs)
+        # Select entity keys + timestamp + aggregate features (drop raw columns)
+        output_cols = group_keys + [ts_field] + [a["name"] for a in table._aggregates]
+        return expr.select(output_cols).distinct()

@@ -27,6 +27,11 @@ check-format:
 check-security:
     uv run bandit --recursive --configfile=pyproject.toml {{SOURCES}}
 
+# audit dependencies for vulnerabilities
+[group('check')]
+check-audit:
+    uv run pip-audit --desc
+
 # check unit tests
 [group('check')]
 check-test numprocesses="auto":
