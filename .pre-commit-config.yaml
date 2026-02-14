@@ -1,0 +1,48 @@
+# https://pre-commit.com
+default_language_version:
+  python: python3.14
+repos:
+  # Keep these - they're lightweight file checks that don't overlap with your just commands
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v5.0.0"
+    hooks:
+      - id: check-added-large-files
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-toml
+      - id: check-yaml
+      - id: debug-statements
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+      - id: trailing-whitespace
+  # tool pre commit hooks configured with justfile commands
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run just check-code
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: ruff-format
+        name: ruff format
+        entry: uv run just check-format
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: bandit
+        name: bandit security check
+        entry: uv run just check-security
+        language: system
+        pass_filenames: false
+        types: [python]
+      - id: ty-check
+        name: ty check
+        entry: uv run just check-type
+        language: system
+        pass_filenames: false
+      - id: commitizen
+        name: commitizen check
+        entry: uv run cz check --commit-msg-file
+        language: system
+        stages: [commit-msg]
