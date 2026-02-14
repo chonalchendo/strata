@@ -35,6 +35,46 @@ class SqliteRegistry(base.BaseRegistry):
         """Create a database connection."""
         return sqlite3.connect(self.path)
 
+    def _ensure_build_tables(self) -> None:
+        """Create build-related tables if they don't exist.
+
+        Called automatically by put_quality_result/put_build_record when
+        the registry hasn't been fully initialized via ``up``. This lets
+        ``build`` persist its own metadata without requiring ``up`` first.
+        """
+        path = Path(self.path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        conn = self._connect()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS quality_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    table_name TEXT NOT NULL,
+                    passed INTEGER NOT NULL,
+                    has_warnings INTEGER NOT NULL,
+                    rows_checked INTEGER NOT NULL,
+                    results_json TEXT NOT NULL,
+                    build_id INTEGER
+                )
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS build_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    table_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    row_count INTEGER,
+                    duration_ms REAL,
+                    data_timestamp_max TEXT
+                )
+            """)
+            conn.commit()
+        finally:
+            conn.close()
+
     def initialize(self) -> None:
         """Create tables if they don't exist.
 
@@ -354,7 +394,20 @@ class SqliteRegistry(base.BaseRegistry):
             conn.close()
 
     def put_quality_result(self, result: registry.QualityResultRecord) -> None:
-        """Store a quality validation result."""
+        """Store a quality validation result.
+
+        Auto-creates the quality_results table if it doesn't exist,
+        so ``build`` can persist metadata without requiring ``up`` first.
+        """
+        try:
+            self._insert_quality_result(result)
+        except sqlite3.OperationalError:
+            self._ensure_build_tables()
+            self._insert_quality_result(result)
+
+    def _insert_quality_result(
+        self, result: registry.QualityResultRecord
+    ) -> None:
         conn = self._connect()
         try:
             cursor = conn.cursor()
@@ -404,7 +457,18 @@ class SqliteRegistry(base.BaseRegistry):
             conn.close()
 
     def put_build_record(self, record: registry.BuildRecord) -> None:
-        """Store a build execution record."""
+        """Store a build execution record.
+
+        Auto-creates the build_records table if it doesn't exist,
+        so ``build`` can persist metadata without requiring ``up`` first.
+        """
+        try:
+            self._insert_build_record(record)
+        except sqlite3.OperationalError:
+            self._ensure_build_tables()
+            self._insert_build_record(record)
+
+    def _insert_build_record(self, record: registry.BuildRecord) -> None:
         conn = self._connect()
         try:
             cursor = conn.cursor()
