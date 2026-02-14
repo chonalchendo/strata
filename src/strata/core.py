@@ -52,7 +52,7 @@ class FeatureTable(StrataBaseModel):
     description: str | None = None
     source: sources.SourceKind | SourceTable | "FeatureTable"
     entity: Entity
-    timestamp_field: str
+    timestamp_field: str | None = None
     schedule: str | None = None  # Optional tag, validated at preview/up
     owner: str | None = None
     tags: dict[str, str] | None = None
@@ -318,7 +318,7 @@ class SourceTable(StrataBaseModel):
     description: str | None = None
     source: sources.SourceKind
     entity: Entity
-    timestamp_field: str
+    timestamp_field: str | None = None
     owner: str | None = None
     tags: dict[str, str] | None = None
     schema_: type[Schema] | None = pdt.Field(default=None, alias="schema")

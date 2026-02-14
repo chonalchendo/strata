@@ -21,7 +21,6 @@ merchants_source = st.BatchSource(
     name="Merchant details",
     description="Merchant reference data with categories and locations",
     config=st.LocalSourceConfig(path="data/merchants.csv", format="csv"),
-    timestamp_field="merchant_id",
 )
 
 
@@ -39,7 +38,6 @@ merchants_st = st.SourceTable(
     description="Merchant reference data",
     source=merchants_source,
     entity=entities.merchant,
-    timestamp_field="merchant_id",
     schema=MerchantsSchema,
 )
 

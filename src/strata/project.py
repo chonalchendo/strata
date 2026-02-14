@@ -321,7 +321,7 @@ class BoundDataset:
 
             # Determine metadata from the table definition
             entity_keys = table_def.entity.join_keys
-            timestamp_col = table_def.timestamp_field
+            timestamp_col = table_def.timestamp_field or "event_ts"
             feature_cols = [f.name for f in features]
 
             # Get TTL from source if available (RealTimeSource)
@@ -343,7 +343,9 @@ class BoundDataset:
         # Determine spine timestamp column from the spine table
         spine_table_def = all_tables.get(spine_table_name)
         spine_timestamp = (
-            spine_table_def.timestamp_field if spine_table_def else "event_ts"
+            spine_table_def.timestamp_field
+            if spine_table_def and spine_table_def.timestamp_field
+            else "event_ts"
         )
 
         # Execute PIT join
@@ -504,6 +506,12 @@ class BoundDataset:
         data = self._project._backend.read_table(spine_table_name)
 
         ts_col = table_def.timestamp_field
+        if ts_col is None:
+            raise errors.StrataError(
+                context="Building implicit spine for dataset '{}'".format(self._dataset.name),
+                cause="Spine table '{}' has no timestamp_field".format(spine_table_name),
+                fix="Set timestamp_field on the table definition, or provide an explicit spine.",
+            )
         entity_keys = table_def.entity.join_keys
 
         # Filter to date range

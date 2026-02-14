@@ -128,7 +128,7 @@ class IbisCompiler:
             expr = ibis.table(schema=schema, name=table.source_name)
 
         # Apply date range filter before transforms (timestamp col still available)
-        if date_range is not None:
+        if date_range is not None and table.timestamp_field is not None:
             start, end = date_range
             ts_col = expr[table.timestamp_field]
             expr = expr.filter((ts_col >= start) & (ts_col < end))
@@ -159,7 +159,8 @@ class IbisCompiler:
             schema[key] = dt.string
 
         # Timestamp field
-        schema[table.timestamp_field] = dt.timestamp
+        if table.timestamp_field is not None:
+            schema[table.timestamp_field] = dt.timestamp
 
         # Aggregate source columns -- default to float64 (most permissive
         # numeric type). The field dtype describes the aggregate *output*,
@@ -179,6 +180,13 @@ class IbisCompiler:
         source row with correct rolling aggregate values, enabling PIT
         joins for offline training and time-series builds.
         """
+        if table.timestamp_field is None:
+            msg = (
+                f"FeatureTable '{table.name}' defines aggregates but has no timestamp_field. "
+                f"Windowed aggregations require a timestamp_field for ordering."
+            )
+            raise ValueError(msg)
+
         group_keys = list(table.entity.join_keys)
         ts_field = table.timestamp_field
 

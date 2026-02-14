@@ -566,6 +566,11 @@ def build(
             skip_quality=skip_quality,
         )
 
+        # Write compile artifacts for successfully-built tables
+        _write_build_compile_output(
+            strata_settings, discovered, feature_tables, result,
+        )
+
         elapsed = time.perf_counter() - t0
 
         # Display results
@@ -589,6 +594,60 @@ def build(
     except errors.StrataError as e:
         _handle_error(e, json_mode=json_output)
         raise SystemExit(1)
+
+
+def _write_build_compile_output(
+    strata_settings: settings.StrataSettings,
+    discovered: list,
+    feature_tables: list,
+    result: "build_mod.BuildResult",
+) -> None:
+    """Write compile artifacts for successfully-built tables (best-effort)."""
+    import strata.build as build_mod
+    import strata.compile_output as compile_output
+    import strata.compiler as compiler_mod
+
+    successful = {
+        r.table_name
+        for r in result.table_results
+        if r.status == build_mod.BuildStatus.SUCCESS
+    }
+    if not successful:
+        return
+
+    project_root = (
+        Path(strata_settings._config_path).parent
+        if strata_settings._config_path
+        else Path.cwd()
+    )
+    output_dir = project_root / ".strata" / "compiled"
+
+    # Build disc lookup from discovered objects
+    disc_by_name = {d.name: d for d in discovered if d.kind == "feature_table"}
+    table_by_name = {ft.name: ft for ft in feature_tables}
+
+    ibis_compiler = compiler_mod.IbisCompiler()
+
+    for table_name in successful:
+        disc = disc_by_name.get(table_name)
+        ft = table_by_name.get(table_name)
+        if disc is None or ft is None:
+            continue
+        try:
+            compiled = ibis_compiler.compile_table(ft)
+            compile_output.write_compile_output(
+                compiled=compiled,
+                disc=disc,
+                output_dir=output_dir,
+                env=strata_settings.active_env,
+                strata_version=__version__,
+            )
+        except Exception:
+            logger.warning(
+                "Failed to write compile output for '%s'",
+                table_name,
+                exc_info=True,
+            )
 
 
 def _parse_date(date_str: str) -> datetime:
@@ -1659,7 +1718,7 @@ def _publish_tables(
 
         data = backend.read_table(ft.name)
         entity_columns = ft.entity.join_keys
-        timestamp_column = ft.timestamp_field
+        timestamp_column = ft.timestamp_field or "event_ts"
 
         online_store.write_batch(
             table_name=ft.name,

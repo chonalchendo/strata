@@ -6,7 +6,7 @@ Each environment in strata.yaml specifies which backend to use.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 import pyarrow as pa
 import pydantic as pdt
@@ -180,10 +180,29 @@ class BaseBackend(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
     Ibis IS the compute abstraction. The compiler builds backend-agnostic
     Ibis expressions. The backend handles: connection, source registration,
     execution, and output I/O via format delegation.
+
+    The ``format`` field accepts either a string shorthand (``"delta"``,
+    ``"parquet"``) or a full dict with format-specific options::
+
+        # Simple
+        format: delta
+
+        # With options
+        format:
+          kind: delta
+          partition_columns: [date]
     """
 
     kind: str
     format: formats.FormatKind = formats.ParquetFormat()
+
+    @pdt.model_validator(mode="before")
+    @classmethod
+    def _coerce_format_string(cls, data: Any) -> Any:
+        """Coerce ``format: "delta"`` shorthand to ``{"kind": "delta"}``."""
+        if isinstance(data, dict) and isinstance(data.get("format"), str):
+            data = {**data, "format": {"kind": data["format"]}}
+        return data
 
     def connect(self) -> "ibis.BaseBackend":
         """Create and return an Ibis backend connection.

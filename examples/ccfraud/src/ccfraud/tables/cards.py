@@ -17,7 +17,6 @@ cards_source = st.BatchSource(
     name="Card details",
     description="Credit/debit card reference data",
     config=st.LocalSourceConfig(path="data/cards.csv", format="csv"),
-    timestamp_field="cc_num",
 )
 
 
@@ -35,6 +34,5 @@ cards_st = st.SourceTable(
     description="Credit/debit card reference data",
     source=cards_source,
     entity=entities.card,
-    timestamp_field="cc_num",
     schema=CardsSchema,
 )

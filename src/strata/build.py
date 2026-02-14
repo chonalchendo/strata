@@ -360,6 +360,12 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                 )
             elif start is not None and end is not None:
                 # Delete existing data in the range, then append
+                if table.timestamp_field is None:
+                    msg = (
+                        f"Cannot backfill table '{table.name}': "
+                        f"--start/--end requires a timestamp_field."
+                    )
+                    raise ValueError(msg)
                 self.backend.delete_range(
                     table_name=table.name,
                     partition_col=table.timestamp_field,
@@ -466,7 +472,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         row_count: int | None,
         duration_ms: float,
         data: Any,
-        timestamp_field: str,
+        timestamp_field: str | None,
     ) -> None:
         """Persist a build record to the registry."""
         if self.registry is None:
@@ -476,7 +482,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
         # Extract max data timestamp if available
         data_timestamp_max: str | None = None
-        if data is not None and timestamp_field in data.column_names:
+        if data is not None and timestamp_field is not None and timestamp_field in data.column_names:
             try:
                 import pyarrow.compute as pc
 

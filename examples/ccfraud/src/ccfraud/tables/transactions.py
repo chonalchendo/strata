@@ -26,13 +26,23 @@ transactions_source = st.BatchSource(
 
 class TransactionsSchema(st.Schema):
     t_id = st.Field(description="Transaction ID", dtype="string", not_null=True)
-    cc_num = st.Field(description="Credit card number", dtype="string", not_null=True)
-    merchant_id = st.Field(description="Merchant ID", dtype="string", not_null=True)
+    cc_num = st.Field(
+        description="Credit card number", dtype="string", not_null=True
+    )
+    merchant_id = st.Field(
+        description="Merchant ID", dtype="string", not_null=True
+    )
     amount = st.Field(description="Transaction amount", dtype="float64", ge=0)
     datetime = st.Field(description="Transaction timestamp", dtype="datetime")
-    ip_address = st.Field(description="IP address of transaction", dtype="string")
-    card_present = st.Field(description="Whether card was physically present", dtype="int64")
-    is_fraud = st.Field(description="Fraud label (0=legit, 1=fraud)", dtype="int64")
+    ip_address = st.Field(
+        description="IP address of transaction", dtype="string"
+    )
+    card_present = st.Field(
+        description="Whether card was physically present", dtype="int64"
+    )
+    is_fraud = st.Field(
+        description="Fraud label (0=legit, 1=fraud)", dtype="int64"
+    )
     latitude = st.Field(description="Transaction latitude", dtype="float64")
     longitude = st.Field(description="Transaction longitude", dtype="float64")
 
@@ -61,7 +71,9 @@ txn_features_ft = st.FeatureTable(
 # Transaction count windows
 txn_count_1d = txn_features_ft.aggregate(
     name="txn_count_1d",
-    field=st.Field(dtype="int64", description="Transaction count in last 1 day", ge=0),
+    field=st.Field(
+        dtype="int64", description="Transaction count in last 1 day", ge=0
+    ),
     column="amount",
     function="count",
     window=timedelta(days=1),
@@ -69,7 +81,9 @@ txn_count_1d = txn_features_ft.aggregate(
 
 txn_count_7d = txn_features_ft.aggregate(
     name="txn_count_7d",
-    field=st.Field(dtype="int64", description="Transaction count in last 7 days", ge=0),
+    field=st.Field(
+        dtype="int64", description="Transaction count in last 7 days", ge=0
+    ),
     column="amount",
     function="count",
     window=timedelta(days=7),
@@ -77,16 +91,30 @@ txn_count_7d = txn_features_ft.aggregate(
 
 txn_count_30d = txn_features_ft.aggregate(
     name="txn_count_30d",
-    field=st.Field(dtype="int64", description="Transaction count in last 30 days", ge=0),
+    field=st.Field(
+        dtype="int64", description="Transaction count in last 30 days", ge=0
+    ),
     column="amount",
     function="count",
     window=timedelta(days=30),
 )
 
+txn_count_90d = txn_features_ft.aggregate(
+    name="txn_count_90d",
+    field=st.Field(
+        dtype="int64", description="Transaction count in the last 90 days", ge=0
+    ),
+    column="amount",
+    function="count",
+    window=timedelta(days=90),
+)
+
 # Transaction amount sum windows
 txn_amount_sum_1d = txn_features_ft.aggregate(
     name="txn_amount_sum_1d",
-    field=st.Field(dtype="float64", description="Total amount in last 1 day", ge=0),
+    field=st.Field(
+        dtype="float64", description="Total amount in last 1 day", ge=0
+    ),
     column="amount",
     function="sum",
     window=timedelta(days=1),
@@ -94,7 +122,9 @@ txn_amount_sum_1d = txn_features_ft.aggregate(
 
 txn_amount_sum_7d = txn_features_ft.aggregate(
     name="txn_amount_sum_7d",
-    field=st.Field(dtype="float64", description="Total amount in last 7 days", ge=0),
+    field=st.Field(
+        dtype="float64", description="Total amount in last 7 days", ge=0
+    ),
     column="amount",
     function="sum",
     window=timedelta(days=7),
@@ -103,7 +133,10 @@ txn_amount_sum_7d = txn_features_ft.aggregate(
 # Average amount (30d)
 txn_amount_avg_30d = txn_features_ft.aggregate(
     name="txn_amount_avg_30d",
-    field=st.Field(dtype="float64", description="Average transaction amount in last 30 days"),
+    field=st.Field(
+        dtype="float64",
+        description="Average transaction amount in last 30 days",
+    ),
     column="amount",
     function="avg",
     window=timedelta(days=30),
@@ -112,7 +145,9 @@ txn_amount_avg_30d = txn_features_ft.aggregate(
 # Is-fraud label (latest value via 1d avg -- used as Dataset label)
 is_fraud = txn_features_ft.aggregate(
     name="is_fraud",
-    field=st.Field(dtype="float64", description="Fraud label (0=legit, 1=fraud)"),
+    field=st.Field(
+        dtype="float64", description="Fraud label (0=legit, 1=fraud)"
+    ),
     column="is_fraud",
     function="avg",
     window=timedelta(days=1),

@@ -25,7 +25,7 @@ class BatchSource(pdt.BaseModel):
     name: str
     description: str | None = None
     config: base.BaseSourceConfig
-    timestamp_field: str
+    timestamp_field: str | None = None
 
 
 class StreamSource(pdt.BaseModel):
@@ -46,7 +46,7 @@ class StreamSource(pdt.BaseModel):
     name: str
     description: str | None = None
     config: base.BaseSourceConfig
-    timestamp_field: str
+    timestamp_field: str | None = None
     batch_fallback: base.BaseSourceConfig | None = None
 
 
@@ -67,7 +67,7 @@ class RealTimeSource(pdt.BaseModel):
     name: str
     description: str | None = None
     config: base.BaseSourceConfig
-    timestamp_field: str
+    timestamp_field: str | None = None
     ttl: timedelta | None = None
 
 

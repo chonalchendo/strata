@@ -17,7 +17,6 @@ accounts_source = st.BatchSource(
     name="Account details",
     description="Customer account reference data",
     config=st.LocalSourceConfig(path="data/accounts.csv", format="csv"),
-    timestamp_field="account_id",
 )
 
 
@@ -33,6 +32,5 @@ accounts_st = st.SourceTable(
     description="Customer account reference data",
     source=accounts_source,
     entity=entities.account,
-    timestamp_field="account_id",
     schema=AccountsSchema,
 )

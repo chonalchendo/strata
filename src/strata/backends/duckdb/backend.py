@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, override
+from typing import TYPE_CHECKING, Annotated, Literal, override
 
 import pyarrow as pa
 import pydantic as pdt
@@ -52,7 +52,7 @@ class DuckDBBackend(base.BaseBackend):
     extensions: list[str] = pdt.Field(default_factory=list)
     path: str
     catalog: str
-    format: formats.FormatKind = formats.ParquetFormat()
+    format: Annotated[formats.FormatKind, pdt.Field(discriminator="kind")] = formats.ParquetFormat()
     motherduck_token: str | None = None
 
     def _table_path(self, table_name: str) -> Path:

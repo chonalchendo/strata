@@ -52,7 +52,7 @@ src/ccfraud/
     accounts.py         -- Account SourceTable
     cards.py            -- Card SourceTable
   datasets/
-    fraud_detection.py  -- Dataset: 7 features + is_fraud label
+    fraud_detection.py  -- Dataset: 7 transaction features + is_fraud label
   pipelines/
     training.py         -- XGBoost training via read_features()
     inference.py        -- Batch inference via read_features() + write_table()
@@ -91,8 +91,8 @@ The `fraud_detection` Dataset includes:
 - `txn_count_1d` -- 1-day transaction count per card
 - `txn_count_7d` -- 7-day transaction count per card
 - `txn_count_30d` -- 30-day transaction count per card
+- `txn_count_90d` -- 90-day transaction count per card
 - `txn_amount_sum_1d` -- 1-day total spend per card
 - `txn_amount_sum_7d` -- 7-day total spend per card
 - `txn_amount_avg_30d` -- 30-day average transaction amount per card
-- `merchant_txn_count_30d` -- 30-day transaction count per merchant
 - **Label**: `is_fraud` -- fraud indicator (prediction target)

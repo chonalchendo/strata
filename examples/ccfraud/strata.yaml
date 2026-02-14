@@ -16,6 +16,7 @@ environments:
       path: .strata/dev/lakehouse
       catalog: ccfraud_dev
       extensions: [parquet, json]
+      format: delta
     online_store:
       kind: sqlite
       path: .strata/dev/online.db

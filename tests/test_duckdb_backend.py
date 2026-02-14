@@ -48,6 +48,44 @@ class TestDuckDBBackendConfig:
         )
         assert isinstance(backend.format, formats.DeltaFormat)
 
+    def test_format_string_shorthand_delta(self, tmp_path):
+        """format: 'delta' string is coerced to DeltaFormat."""
+        backend = duckdb_backend.DuckDBBackend.model_validate(
+            {
+                "kind": "duckdb",
+                "path": str(tmp_path / "data"),
+                "catalog": "features",
+                "format": "delta",
+            }
+        )
+        assert isinstance(backend.format, formats.DeltaFormat)
+        assert backend.format.kind == "delta"
+
+    def test_format_string_shorthand_parquet(self, tmp_path):
+        """format: 'parquet' string is coerced to ParquetFormat."""
+        backend = duckdb_backend.DuckDBBackend.model_validate(
+            {
+                "kind": "duckdb",
+                "path": str(tmp_path / "data"),
+                "catalog": "features",
+                "format": "parquet",
+            }
+        )
+        assert isinstance(backend.format, formats.ParquetFormat)
+
+    def test_format_dict_with_options(self, tmp_path):
+        """format: {kind: delta, ...} dict with options works."""
+        backend = duckdb_backend.DuckDBBackend.model_validate(
+            {
+                "kind": "duckdb",
+                "path": str(tmp_path / "data"),
+                "catalog": "features",
+                "format": {"kind": "delta", "partition_columns": ["date"]},
+            }
+        )
+        assert isinstance(backend.format, formats.DeltaFormat)
+        assert backend.format.partition_columns == ["date"]
+
     def test_default_database_is_memory(self, tmp_path):
         """Default database is :memory:."""
         backend = duckdb_backend.DuckDBBackend(
