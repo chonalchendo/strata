@@ -476,9 +476,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             self.registry.put_quality_result(record)
         except Exception:
             logger.warning(
-                "Failed to persist quality result for '%s'",
+                "Could not save quality result for '%s'"
+                " (run 'strata up' to enable full tracking)",
                 table_name,
-                exc_info=True,
             )
 
     def _persist_build_record(
@@ -526,7 +526,7 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             self.registry.put_build_record(record)
         except Exception:
             logger.warning(
-                "Failed to persist build record for '%s'",
+                "Could not save build record for '%s'"
+                " (run 'strata up' to enable full tracking)",
                 table_name,
-                exc_info=True,
             )

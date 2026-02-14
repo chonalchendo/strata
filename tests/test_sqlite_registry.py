@@ -624,3 +624,89 @@ class TestSqliteRegistryBuildRecords:
         assert result.row_count is None
         assert result.duration_ms is None
         assert result.data_timestamp_max is None
+
+
+class TestSqliteRegistryAutoInitBuildTables:
+    """Tests for auto-initialization of build tables without full initialize()."""
+
+    def test_put_quality_result_without_initialize(self, tmp_path):
+        """put_quality_result auto-creates quality_results table."""
+        db_path = tmp_path / "registry.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        # No reg.initialize() — simulates 'build' without 'up'
+
+        now = datetime.now(timezone.utc)
+        result = registry.QualityResultRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            passed=True,
+            has_warnings=False,
+            rows_checked=500,
+            results_json='{"fields": []}',
+        )
+        reg.put_quality_result(result)
+
+        results = reg.get_quality_results("user_features")
+        assert len(results) == 1
+        assert results[0].table_name == "user_features"
+        assert results[0].passed is True
+
+    def test_put_build_record_without_initialize(self, tmp_path):
+        """put_build_record auto-creates build_records table."""
+        db_path = tmp_path / "registry.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        # No reg.initialize()
+
+        now = datetime.now(timezone.utc)
+        record = registry.BuildRecord(
+            id=None,
+            timestamp=now,
+            table_name="user_features",
+            status="success",
+            row_count=500,
+            duration_ms=100.0,
+        )
+        reg.put_build_record(record)
+
+        result = reg.get_latest_build("user_features")
+        assert result is not None
+        assert result.table_name == "user_features"
+        assert result.status == "success"
+
+    def test_auto_init_creates_parent_directory(self, tmp_path):
+        """Auto-init creates missing parent directories."""
+        db_path = tmp_path / "nested" / "dir" / "registry.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+
+        now = datetime.now(timezone.utc)
+        reg.put_build_record(
+            registry.BuildRecord(
+                id=None,
+                timestamp=now,
+                table_name="t",
+                status="success",
+            )
+        )
+
+        assert db_path.exists()
+
+    def test_auto_init_is_idempotent_with_initialize(self, tmp_path):
+        """Auto-init doesn't break a fully initialized registry."""
+        db_path = tmp_path / "registry.db"
+        reg = sqlite.SqliteRegistry(path=str(db_path))
+        reg.initialize()  # Full init first
+
+        now = datetime.now(timezone.utc)
+        reg.put_build_record(
+            registry.BuildRecord(
+                id=None,
+                timestamp=now,
+                table_name="t",
+                status="success",
+            )
+        )
+
+        result = reg.get_latest_build("t")
+        assert result is not None
+        assert result.status == "success"
