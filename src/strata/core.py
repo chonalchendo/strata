@@ -9,7 +9,14 @@ import strata.errors as errors
 import strata.sources as sources
 
 DType = Literal[
-    "int64", "int32", "float64", "float32", "string", "bool", "datetime", "date",
+    "int64",
+    "int32",
+    "float64",
+    "float32",
+    "string",
+    "bool",
+    "datetime",
+    "date",
 ]
 
 AggFunction = Literal["sum", "count", "avg", "min", "max", "count_distinct"]
@@ -63,7 +70,9 @@ class FeatureTable(StrataBaseModel):
     lookback: timedelta | None = None  # Late-arriving data window
 
     # Online serving
-    online: bool = False  # Declares intent to sync to online store via `strata publish`
+    online: bool = (
+        False  # Declares intent to sync to online store via `strata publish`
+    )
 
     # Quality
     sla: "checks.SLA | None" = None
@@ -98,7 +107,9 @@ class FeatureTable(StrataBaseModel):
     def __getattr__(self, name: str) -> Feature:
         """Allow attribute-style access to features: table.feature_name"""
         if name.startswith("_"):
-            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+            raise AttributeError(
+                f"'{type(self).__name__}' has no attribute '{name}'"
+            )
         # Use object.__getattribute__ to avoid recursion when accessing private attributes
         features = object.__getattribute__(self, "_features")
         if name in features:
@@ -341,7 +352,9 @@ class SourceTable(StrataBaseModel):
     def __getattr__(self, name: str) -> Feature:
         """Allow attribute-style access to features: table.feature_name"""
         if name.startswith("_"):
-            raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+            raise AttributeError(
+                f"'{type(self).__name__}' has no attribute '{name}'"
+            )
 
         features = object.__getattribute__(self, "_features")
         if name in features:
@@ -492,7 +505,9 @@ class Field(StrataBaseModel):
     max_zscore: float | None = None  # Outlier detection
 
     # Severity
-    severity: Literal["warn", "error"] = "error"  # Constraint violation behavior
+    severity: Literal["warn", "error"] = (
+        "error"  # Constraint violation behavior
+    )
 
     # Metadata
     tags: list[str] | None = None  # ["pii", "financial"]

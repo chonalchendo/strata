@@ -13,7 +13,7 @@ import strata.discovery as discovery
 import strata.registry as registry
 
 if TYPE_CHECKING:
-    import strata.backends.base as base
+    import strata.infra.backends.base as base
 
 
 class ChangeOperation(str, Enum):
@@ -59,19 +59,27 @@ class DiffResult:
 
     @property
     def creates(self) -> list[Change]:
-        return [c for c in self.changes if c.operation == ChangeOperation.CREATE]
+        return [
+            c for c in self.changes if c.operation == ChangeOperation.CREATE
+        ]
 
     @property
     def updates(self) -> list[Change]:
-        return [c for c in self.changes if c.operation == ChangeOperation.UPDATE]
+        return [
+            c for c in self.changes if c.operation == ChangeOperation.UPDATE
+        ]
 
     @property
     def deletes(self) -> list[Change]:
-        return [c for c in self.changes if c.operation == ChangeOperation.DELETE]
+        return [
+            c for c in self.changes if c.operation == ChangeOperation.DELETE
+        ]
 
     @property
     def unchanged(self) -> list[Change]:
-        return [c for c in self.changes if c.operation == ChangeOperation.UNCHANGED]
+        return [
+            c for c in self.changes if c.operation == ChangeOperation.UNCHANGED
+        ]
 
     @property
     def has_changes(self) -> bool:

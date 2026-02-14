@@ -65,7 +65,7 @@ user = core.Entity(name="user", join_keys=["user_id"])
         """
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 # Reference entity - must match spec from entities/user.py exactly
 user = core.Entity(name="user", join_keys=["user_id"])
@@ -118,7 +118,7 @@ environments:
         """
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 # Missing entity definition
 user = core.Entity(name="user", join_keys=["user_id"])
@@ -170,7 +170,9 @@ class TestValidateCommand:
             # Should fail with code 1 due to duplicate entity
             assert exc_info.value.code == 1
 
-    def test_validate_invalid_schedule_fails(self, invalid_project, monkeypatch):
+    def test_validate_invalid_schedule_fails(
+        self, invalid_project, monkeypatch
+    ):
         """Invalid schedule should cause validation error."""
         monkeypatch.chdir(invalid_project)
 
@@ -262,7 +264,7 @@ environments:
             """
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 user = core.Entity(name="user", join_keys=["user_id"])
 
@@ -292,7 +294,9 @@ user_features = core.FeatureTable(
             run_cli(["compile"])
 
         # Check files were created
-        compiled_dir = compile_project / ".strata" / "compiled" / "user_features"
+        compiled_dir = (
+            compile_project / ".strata" / "compiled" / "user_features"
+        )
         assert compiled_dir.exists()
         assert (compiled_dir / "query.sql").exists()
         assert (compiled_dir / "lineage.json").exists()
@@ -309,10 +313,14 @@ user_features = core.FeatureTable(
         with patch.object(output_mod.console, "print"):
             run_cli(["compile", "user_features"])
 
-        compiled_dir = compile_project / ".strata" / "compiled" / "user_features"
+        compiled_dir = (
+            compile_project / ".strata" / "compiled" / "user_features"
+        )
         assert compiled_dir.exists()
 
-    def test_compile_nonexistent_table_fails(self, compile_project, monkeypatch):
+    def test_compile_nonexistent_table_fails(
+        self, compile_project, monkeypatch
+    ):
         """Compile with unknown table name should fail."""
         monkeypatch.chdir(compile_project)
 

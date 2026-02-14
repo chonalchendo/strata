@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 import pydantic as pdt
 
-import strata.backends as backends
+import strata.infra as infra
 import strata.compiler as compiler_mod
 import strata.dag as dag_mod
 
@@ -68,17 +68,23 @@ class BuildResult:
     @property
     def success_count(self) -> int:
         """Number of tables that built successfully."""
-        return sum(1 for r in self.table_results if r.status == BuildStatus.SUCCESS)
+        return sum(
+            1 for r in self.table_results if r.status == BuildStatus.SUCCESS
+        )
 
     @property
     def failed_count(self) -> int:
         """Number of tables that failed."""
-        return sum(1 for r in self.table_results if r.status == BuildStatus.FAILED)
+        return sum(
+            1 for r in self.table_results if r.status == BuildStatus.FAILED
+        )
 
     @property
     def skipped_count(self) -> int:
         """Number of tables skipped due to upstream failure."""
-        return sum(1 for r in self.table_results if r.status == BuildStatus.SKIPPED)
+        return sum(
+            1 for r in self.table_results if r.status == BuildStatus.SKIPPED
+        )
 
     @property
     def is_success(self) -> bool:
@@ -88,7 +94,9 @@ class BuildResult:
     @property
     def validation_count(self) -> int:
         """Number of tables that were validated."""
-        return sum(1 for r in self.table_results if r.validation_passed is not None)
+        return sum(
+            1 for r in self.table_results if r.validation_passed is not None
+        )
 
     @property
     def validation_warning_count(self) -> int:
@@ -118,10 +126,8 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         result = engine.build(tables=[user_transactions, user_risk])
     """
 
-    backend: backends.BackendKind = pdt.Field(
-        ..., discriminator="kind"
-    )
-    registry: backends.RegistryKind | None = pdt.Field(
+    backend: infra.BackendKind = pdt.Field(..., discriminator="kind")
+    registry: infra.RegistryKind | None = pdt.Field(
         default=None, discriminator="kind"
     )
 
@@ -181,7 +187,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
             # Check if any upstream dependency failed
             upstream_deps = dag.get_upstream(table_name, include_self=False)
-            upstream_failed = [dep for dep in upstream_deps if dep in failed_tables]
+            upstream_failed = [
+                dep for dep in upstream_deps if dep in failed_tables
+            ]
 
             if upstream_failed:
                 result.table_results.append(
@@ -258,7 +266,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
         try:
             # Register the source if it's an external source (not a FeatureTable)
-            if not isinstance(table.source, (core.FeatureTable, core.SourceTable)):
+            if not isinstance(
+                table.source, (core.FeatureTable, core.SourceTable)
+            ):
                 self.backend.register_source(
                     conn=conn,
                     name=table.source_name,
@@ -268,7 +278,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
             # Compile the table to an Ibis expression
             # Date range filter is applied at the source level (before
             # aggregation) so the timestamp column is still available.
-            date_range = (start, end) if start is not None and end is not None else None
+            date_range = (
+                (start, end) if start is not None and end is not None else None
+            )
             compiled = compiler.compile_table(table, date_range=date_range)
 
             # Execute the expression via the backend
@@ -299,7 +311,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                 self._persist_quality_result(table.name, validation_result)
 
                 if not validation_result.passed:
-                    elapsed_ms = (datetime.now() - start_time).total_seconds() * 1000
+                    elapsed_ms = (
+                        datetime.now() - start_time
+                    ).total_seconds() * 1000
 
                     # Collect failed error-severity constraints for message
                     failed_constraints = []
@@ -381,7 +395,9 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
                 # Normal write using table's write_mode
                 write_mode = table.write_mode
                 merge_keys = (
-                    table.effective_merge_keys if write_mode == "merge" else None
+                    table.effective_merge_keys
+                    if write_mode == "merge"
+                    else None
                 )
                 self.backend.write_table(
                     table_name=table.name,
@@ -482,7 +498,11 @@ class BuildEngine(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
 
         # Extract max data timestamp if available
         data_timestamp_max: str | None = None
-        if data is not None and timestamp_field is not None and timestamp_field in data.column_names:
+        if (
+            data is not None
+            and timestamp_field is not None
+            and timestamp_field in data.column_names
+        ):
             try:
                 import pyarrow.compute as pc
 

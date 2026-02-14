@@ -6,14 +6,14 @@ from datetime import timedelta
 
 import pydantic as pdt
 
-import strata.backends.base as base
+import strata.infra.backends.base as base
 
 
 class BatchSource(pdt.BaseModel):
     """Batch data source for scheduled data pulls.
 
     Example:
-        from strata.backends.duckdb import DuckDBSourceConfig
+        from strata.infra.backends.duckdb import DuckDBSourceConfig
 
         transactions = BatchSource(
             name="transactions",

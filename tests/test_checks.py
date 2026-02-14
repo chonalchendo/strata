@@ -8,7 +8,7 @@ import pytest
 import strata.checks as checks
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local import LocalSourceConfig
+from strata.infra.backends.local import LocalSourceConfig
 
 
 @pytest.fixture()
@@ -19,7 +19,9 @@ def entity():
 @pytest.fixture()
 def batch_source():
     cfg = LocalSourceConfig(path="/tmp/test.parquet")
-    return sources.BatchSource(name="test_source", config=cfg, timestamp_field="ts")
+    return sources.BatchSource(
+        name="test_source", config=cfg, timestamp_field="ts"
+    )
 
 
 class TestSLADefaults:
@@ -145,7 +147,9 @@ class TestSamplePct:
         assert ft.sample_pct == 100
 
     def test_sample_pct_below_range(self, entity, batch_source):
-        with pytest.raises(Exception, match="sample_pct must be between 1 and 100"):
+        with pytest.raises(
+            Exception, match="sample_pct must be between 1 and 100"
+        ):
             core.FeatureTable(
                 name="test",
                 source=batch_source,
@@ -155,7 +159,9 @@ class TestSamplePct:
             )
 
     def test_sample_pct_above_range(self, entity, batch_source):
-        with pytest.raises(Exception, match="sample_pct must be between 1 and 100"):
+        with pytest.raises(
+            Exception, match="sample_pct must be between 1 and 100"
+        ):
             core.FeatureTable(
                 name="test",
                 source=batch_source,

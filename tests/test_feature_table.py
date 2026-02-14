@@ -2,7 +2,7 @@ import pytest
 
 import strata.core as core
 import strata.sources as sources
-from strata.backends.duckdb import DuckDBSourceConfig
+from strata.infra.backends.duckdb import DuckDBSourceConfig
 
 
 @pytest.fixture
@@ -64,7 +64,9 @@ class TestFeatureTable:
         assert derived_table.is_derived
         assert derived_table.source_name == "filtered_transactions"
 
-    def test_source_name_with_batch_source(self, user_entity, transactions_source):
+    def test_source_name_with_batch_source(
+        self, user_entity, transactions_source
+    ):
         table = core.FeatureTable(
             name="user_transactions",
             source=transactions_source,
@@ -86,7 +88,9 @@ class TestFeatureTable:
         assert table.description == "User transaction features"
         assert table.owner == "data-science-team"
 
-    def test_features_list_empty_initially(self, user_entity, transactions_source):
+    def test_features_list_empty_initially(
+        self, user_entity, transactions_source
+    ):
         table = core.FeatureTable(
             name="user_transactions",
             source=transactions_source,
@@ -95,7 +99,9 @@ class TestFeatureTable:
         )
         assert table.features_list() == []
 
-    def test_unknown_feature_raises_error(self, user_entity, transactions_source):
+    def test_unknown_feature_raises_error(
+        self, user_entity, transactions_source
+    ):
         table = core.FeatureTable(
             name="user_transactions",
             source=transactions_source,

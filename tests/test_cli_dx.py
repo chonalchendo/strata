@@ -313,7 +313,7 @@ environments:
             """
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 user = core.Entity(name="user", join_keys=["user_id"])
 source = sources.BatchSource(

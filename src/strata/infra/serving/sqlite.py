@@ -13,7 +13,7 @@ from typing import Literal
 
 import pyarrow as pa
 
-import strata.serving.base as base
+import strata.infra.serving.base as base
 
 
 class SqliteOnlineStore(base.BaseOnlineStore):
@@ -102,7 +102,8 @@ class SqliteOnlineStore(base.BaseOnlineStore):
 
         # Feature columns are everything except entity columns and timestamp
         feature_columns = [
-            c for c in data.column_names
+            c
+            for c in data.column_names
             if c not in entity_columns and c != timestamp_column
         ]
 
@@ -113,7 +114,10 @@ class SqliteOnlineStore(base.BaseOnlineStore):
             key_json = _canonical_key(entity_key)
             timestamp = str(rows[timestamp_column][i])
 
-            if key_json not in latest_per_entity or timestamp > latest_per_entity[key_json]["timestamp"]:
+            if (
+                key_json not in latest_per_entity
+                or timestamp > latest_per_entity[key_json]["timestamp"]
+            ):
                 features = {col: rows[col][i] for col in feature_columns}
                 latest_per_entity[key_json] = {
                     "entity_key_json": key_json,
@@ -173,7 +177,9 @@ class SqliteOnlineStore(base.BaseOnlineStore):
 
         if row is None:
             # Return empty table -- missing entities return no rows
-            return pa.table({"_feature_timestamp": pa.array([], type=pa.string())})
+            return pa.table(
+                {"_feature_timestamp": pa.array([], type=pa.string())}
+            )
 
         feature_data = json.loads(row[0])
         feature_timestamp = row[1]

@@ -76,7 +76,9 @@ class BuildRecord:
     status: str  # "success", "failed", "skipped"
     row_count: int | None = None
     duration_ms: float | None = None
-    data_timestamp_max: str | None = None  # Max value of timestamp_field in built data
+    data_timestamp_max: str | None = (
+        None  # Max value of timestamp_field in built data
+    )
 
 
 def compute_spec_hash(spec_json: str) -> str:

@@ -8,7 +8,7 @@ import pytest
 import strata.core as core
 import strata.quality as quality
 import strata.sources as sources
-from strata.backends.local import LocalSourceConfig
+from strata.infra.backends.local import LocalSourceConfig
 
 
 # ---------------------------------------------------------------------------
@@ -24,10 +24,14 @@ def entity():
 @pytest.fixture()
 def batch_source():
     cfg = LocalSourceConfig(path="/tmp/test.parquet")
-    return sources.BatchSource(name="test_source", config=cfg, timestamp_field="ts")
+    return sources.BatchSource(
+        name="test_source", config=cfg, timestamp_field="ts"
+    )
 
 
-def _make_table(entity, batch_source, fields: dict, **kwargs) -> core.FeatureTable:
+def _make_table(
+    entity, batch_source, fields: dict, **kwargs
+) -> core.FeatureTable:
     """Helper: create a FeatureTable, register fields via aggregate (simplest path)."""
     from datetime import timedelta
 
@@ -128,7 +132,9 @@ class TestBaseConstraintChecker:
 
 class TestCheckGe:
     def test_ge_pass(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)})
+        ft = _make_table(
+            entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)}
+        )
         data = pa.table({"amount": [1.0, 2.0, 3.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is True
@@ -139,7 +145,9 @@ class TestCheckGe:
         assert cr.rows_failed == 0
 
     def test_ge_fail(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)})
+        ft = _make_table(
+            entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)}
+        )
         data = pa.table({"amount": [1.0, -5.0, 3.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is False
@@ -156,13 +164,17 @@ class TestCheckGe:
 
 class TestCheckLe:
     def test_le_pass(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"score": core.Field(dtype="float64", le=100)})
+        ft = _make_table(
+            entity, batch_source, {"score": core.Field(dtype="float64", le=100)}
+        )
         data = pa.table({"score": [50.0, 99.0, 100.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is True
 
     def test_le_fail(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"score": core.Field(dtype="float64", le=100)})
+        ft = _make_table(
+            entity, batch_source, {"score": core.Field(dtype="float64", le=100)}
+        )
         data = pa.table({"score": [50.0, 101.0, 100.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is False
@@ -178,13 +190,21 @@ class TestCheckLe:
 
 class TestCheckNotNull:
     def test_not_null_pass(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"val": core.Field(dtype="float64", not_null=True)})
+        ft = _make_table(
+            entity,
+            batch_source,
+            {"val": core.Field(dtype="float64", not_null=True)},
+        )
         data = pa.table({"val": [1.0, 2.0, 3.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is True
 
     def test_not_null_fail(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"val": core.Field(dtype="float64", not_null=True)})
+        ft = _make_table(
+            entity,
+            batch_source,
+            {"val": core.Field(dtype="float64", not_null=True)},
+        )
         data = pa.table({"val": pa.array([1.0, None, 3.0], type=pa.float64())})
         result = quality.validate_table(ft, data)
         assert result.passed is False
@@ -237,7 +257,11 @@ class TestCheckAllowedValues:
         ft = _make_table(
             entity,
             batch_source,
-            {"status": core.Field(dtype="string", allowed_values=["active", "inactive"])},
+            {
+                "status": core.Field(
+                    dtype="string", allowed_values=["active", "inactive"]
+                )
+            },
         )
         data = pa.table({"status": ["active", "inactive", "active"]})
         result = quality.validate_table(ft, data)
@@ -247,7 +271,11 @@ class TestCheckAllowedValues:
         ft = _make_table(
             entity,
             batch_source,
-            {"status": core.Field(dtype="string", allowed_values=["active", "inactive"])},
+            {
+                "status": core.Field(
+                    dtype="string", allowed_values=["active", "inactive"]
+                )
+            },
         )
         data = pa.table({"status": ["active", "deleted", "active"]})
         result = quality.validate_table(ft, data)
@@ -268,7 +296,11 @@ class TestCheckPattern:
         ft = _make_table(
             entity,
             batch_source,
-            {"email": core.Field(dtype="string", pattern=r"^[^@]+@[^@]+\.[^@]+$")},
+            {
+                "email": core.Field(
+                    dtype="string", pattern=r"^[^@]+@[^@]+\.[^@]+$"
+                )
+            },
         )
         data = pa.table({"email": ["a@b.com", "x@y.org"]})
         result = quality.validate_table(ft, data)
@@ -278,7 +310,11 @@ class TestCheckPattern:
         ft = _make_table(
             entity,
             batch_source,
-            {"email": core.Field(dtype="string", pattern=r"^[^@]+@[^@]+\.[^@]+$")},
+            {
+                "email": core.Field(
+                    dtype="string", pattern=r"^[^@]+@[^@]+\.[^@]+$"
+                )
+            },
         )
         data = pa.table({"email": ["a@b.com", "notanemail"]})
         result = quality.validate_table(ft, data)
@@ -349,7 +385,9 @@ class TestSamplePct:
 
 class TestCustomValidators:
     def test_custom_validator_pass(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"val": core.Field(dtype="float64")})
+        ft = _make_table(
+            entity, batch_source, {"val": core.Field(dtype="float64")}
+        )
         data = pa.table({"val": [1.0, 2.0, 3.0]})
 
         def all_positive(column: pa.Array) -> bool:
@@ -357,11 +395,15 @@ class TestCustomValidators:
 
             return pc.all(pc.greater(column, 0)).as_py()
 
-        result = quality.validate_table(ft, data, custom_validators={"val": all_positive})
+        result = quality.validate_table(
+            ft, data, custom_validators={"val": all_positive}
+        )
         assert result.passed is True
 
     def test_custom_validator_fail(self, entity, batch_source):
-        ft = _make_table(entity, batch_source, {"val": core.Field(dtype="float64")})
+        ft = _make_table(
+            entity, batch_source, {"val": core.Field(dtype="float64")}
+        )
         data = pa.table({"val": [1.0, -2.0, 3.0]})
 
         def all_positive(column: pa.Array) -> bool:
@@ -369,7 +411,9 @@ class TestCustomValidators:
 
             return pc.all(pc.greater(column, 0)).as_py()
 
-        result = quality.validate_table(ft, data, custom_validators={"val": all_positive})
+        result = quality.validate_table(
+            ft, data, custom_validators={"val": all_positive}
+        )
         assert result.passed is False
         # Find the custom constraint result
         custom_crs = [
@@ -390,7 +434,9 @@ class TestCustomValidators:
 class TestNoConstraints:
     def test_table_with_no_constrained_fields(self, entity, batch_source):
         """A table with no constraints should pass validation."""
-        ft = _make_table(entity, batch_source, {"val": core.Field(dtype="float64")})
+        ft = _make_table(
+            entity, batch_source, {"val": core.Field(dtype="float64")}
+        )
         data = pa.table({"val": [1.0, 2.0, 3.0]})
         result = quality.validate_table(ft, data)
         assert result.passed is True
@@ -405,7 +451,9 @@ class TestNoConstraints:
 class TestExplicitChecker:
     def test_explicit_pyarrow_checker(self, entity, batch_source):
         """Passing an explicit PyArrowConstraintChecker works."""
-        ft = _make_table(entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)})
+        ft = _make_table(
+            entity, batch_source, {"amount": core.Field(dtype="float64", ge=0)}
+        )
         data = pa.table({"amount": [1.0, 2.0, 3.0]})
         checker = quality.PyArrowConstraintChecker()
         result = quality.validate_table(ft, data, checker=checker)

@@ -76,7 +76,9 @@ def _mock_build_result(*, is_success=True, table_results=None):
     result = MagicMock()
     result.is_success = is_success
     result.table_results = table_results or []
-    result.success_count = sum(1 for t in result.table_results if getattr(t, "_success", True))
+    result.success_count = sum(
+        1 for t in result.table_results if getattr(t, "_success", True)
+    )
     result.failed_count = 0 if is_success else 1
     result.skipped_count = 0
     result.validation_count = 0
@@ -240,7 +242,15 @@ class TestBuildDateRange:
             with patch("strata.build.BuildEngine") as mock_engine_cls:
                 mock_engine_cls.return_value.build.return_value = mock_result
                 with patch.object(cli_mod.console, "print"):
-                    run_cli(["build", "--start", "2024-01-01", "--end", "2024-02-01"])
+                    run_cli(
+                        [
+                            "build",
+                            "--start",
+                            "2024-01-01",
+                            "--end",
+                            "2024-02-01",
+                        ]
+                    )
 
                 build_call = mock_engine_cls.return_value.build.call_args
                 from datetime import datetime
@@ -370,7 +380,9 @@ class TestBuildScheduleFilter:
         """--schedule should filter tables by schedule tag."""
         monkeypatch.chdir(project_dir)
 
-        discovered = _mock_discovered_tables(schedules=["hourly", "daily", None])
+        discovered = _mock_discovered_tables(
+            schedules=["hourly", "daily", None]
+        )
 
         mock_result = _mock_build_result()
 
@@ -444,7 +456,9 @@ class TestBuildSkipQualityFlag:
                 build_call = mock_engine_cls.return_value.build.call_args
                 assert build_call.kwargs["skip_quality"] is True
 
-    def test_build_no_skip_quality_defaults_false(self, project_dir, monkeypatch):
+    def test_build_no_skip_quality_defaults_false(
+        self, project_dir, monkeypatch
+    ):
         """Without --skip-quality, skip_quality should be False."""
         monkeypatch.chdir(project_dir)
 

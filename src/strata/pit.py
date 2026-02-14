@@ -137,9 +137,7 @@ def pit_join(
                 for _ in [None]
             ]
             if len(ft.entity_keys) == 1
-            else [
-                current[key] == feat_ibis[key] for key in ft.entity_keys
-            ],
+            else [current[key] == feat_ibis[key] for key in ft.entity_keys],
         )
 
         # Apply TTL enforcement if specified

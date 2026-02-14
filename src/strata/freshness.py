@@ -106,9 +106,13 @@ def check_freshness(
         data_timestamp_max: datetime | None = None
         data_staleness: timedelta | None = None
         if record.data_timestamp_max is not None:
-            data_timestamp_max = datetime.fromisoformat(record.data_timestamp_max)
+            data_timestamp_max = datetime.fromisoformat(
+                record.data_timestamp_max
+            )
             if data_timestamp_max.tzinfo is None:
-                data_timestamp_max = data_timestamp_max.replace(tzinfo=timezone.utc)
+                data_timestamp_max = data_timestamp_max.replace(
+                    tzinfo=timezone.utc
+                )
             data_staleness = now - data_timestamp_max
 
         # Determine status based on SLA
@@ -117,7 +121,10 @@ def check_freshness(
         if max_staleness is not None:
             # Use the worse (larger) of the two staleness values
             effective_staleness = build_staleness
-            if data_staleness is not None and data_staleness > effective_staleness:
+            if (
+                data_staleness is not None
+                and data_staleness > effective_staleness
+            ):
                 effective_staleness = data_staleness
 
             if effective_staleness > max_staleness:

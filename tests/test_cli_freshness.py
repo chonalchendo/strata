@@ -174,7 +174,9 @@ class TestFreshnessJsonOutput:
 
 
 class TestFreshnessExitCodeOnError:
-    def test_exit_code_1_on_error_severity_staleness(self, project_dir, monkeypatch):
+    def test_exit_code_1_on_error_severity_staleness(
+        self, project_dir, monkeypatch
+    ):
         """freshness should exit 1 when any table has status='error'."""
         monkeypatch.chdir(project_dir)
 

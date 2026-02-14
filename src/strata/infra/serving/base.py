@@ -13,7 +13,9 @@ import pydantic as pdt
 import pyarrow as pa
 
 
-class BaseOnlineStore(abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
+class BaseOnlineStore(
+    abc.ABC, pdt.BaseModel, strict=True, frozen=True, extra="forbid"
+):
     """Abstract base class for online feature stores.
 
     Online stores provide low-latency read access to the latest feature values

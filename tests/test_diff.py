@@ -12,7 +12,9 @@ class FakeRegistry:
     def __init__(self, objects: list[registry.ObjectRecord] | None = None):
         self._objects = {(o.kind, o.name): o for o in (objects or [])}
 
-    def list_objects(self, kind: str | None = None) -> list[registry.ObjectRecord]:
+    def list_objects(
+        self, kind: str | None = None
+    ) -> list[registry.ObjectRecord]:
         if kind is None:
             return list(self._objects.values())
         return [o for o in self._objects.values() if o.kind == kind]

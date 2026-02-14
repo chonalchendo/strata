@@ -8,7 +8,7 @@ import strata.compiler as compiler
 import strata.core as core
 import strata.errors as errors
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +76,9 @@ class TestCompiledQuery:
             function="sum",
             window=timedelta(days=90),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert isinstance(result.sql, str)
         assert result.table_name == "user_transactions"
@@ -93,7 +95,9 @@ class TestCompiledQuery:
             function="sum",
             window=timedelta(days=90),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         with pytest.raises(AttributeError):
             result.sql = "SELECT 1"
@@ -105,9 +109,13 @@ class TestCompiledQuery:
 
 
 class TestEmptyTable:
-    def test_compile_empty_table(self, feature_table, ibis_compiler, source_schema):
+    def test_compile_empty_table(
+        self, feature_table, ibis_compiler, source_schema
+    ):
         """A table with no features should compile to a simple SELECT *."""
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "SELECT" in result.sql
         assert result.table_name == "user_transactions"
@@ -120,7 +128,9 @@ class TestEmptyTable:
 
 
 class TestAggregateCompilation:
-    def test_single_aggregate(self, feature_table, ibis_compiler, source_schema):
+    def test_single_aggregate(
+        self, feature_table, ibis_compiler, source_schema
+    ):
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),
@@ -128,14 +138,18 @@ class TestAggregateCompilation:
             function="sum",
             window=timedelta(days=90),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "SUM" in result.sql
         assert "spend_90d" in result.sql
         assert "PARTITION BY" in result.sql
         assert "user_id" in result.sql
 
-    def test_multiple_aggregates(self, feature_table, ibis_compiler, source_schema):
+    def test_multiple_aggregates(
+        self, feature_table, ibis_compiler, source_schema
+    ):
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),
@@ -150,7 +164,9 @@ class TestAggregateCompilation:
             function="count",
             window=timedelta(days=30),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "SUM" in result.sql
         assert "COUNT" in result.sql
@@ -175,7 +191,9 @@ class TestAggregateCompilation:
             function="sum",
             window=timedelta(days=30),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "RANGE BETWEEN" in result.sql
         assert "90" in result.sql
@@ -234,12 +252,16 @@ class TestAggregateCompilation:
             function=function,
             window=timedelta(days=90),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert sql_fragment in result.sql
 
     def test_unsupported_function_raises(self, feature_table):
-        with pytest.raises(errors.StrataError, match="Unsupported aggregation function"):
+        with pytest.raises(
+            errors.StrataError, match="Unsupported aggregation function"
+        ):
             feature_table.aggregate(
                 name="bad",
                 field=core.Field(dtype="float64"),
@@ -260,7 +282,9 @@ class TestCustomFeatureCompilation:
         def is_big(t):
             return t.amount > 100
 
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "is_big" in result.sql
         assert "100" in result.sql
@@ -272,11 +296,15 @@ class TestCustomFeatureCompilation:
         def is_big(t):
             return t.amount > 100
 
-        @feature_table.feature(name="amount_doubled", field=core.Field(dtype="float64"))
+        @feature_table.feature(
+            name="amount_doubled", field=core.Field(dtype="float64")
+        )
         def amount_doubled(t):
             return t.amount * 2
 
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "is_big" in result.sql
         assert "amount_doubled" in result.sql
@@ -288,12 +316,16 @@ class TestCustomFeatureCompilation:
 
 
 class TestTransformCompilation:
-    def test_transform_filters_data(self, feature_table, ibis_compiler, source_schema):
+    def test_transform_filters_data(
+        self, feature_table, ibis_compiler, source_schema
+    ):
         @feature_table.transform()
         def filter_valid(t):
             return t.filter(t.amount > 0)
 
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         assert "amount" in result.sql
         assert "> 0" in result.sql
@@ -314,7 +346,9 @@ class TestTransformCompilation:
             function="sum",
             window=timedelta(days=90),
         )
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         # Both the filter and the aggregate should be in the SQL
         assert "completed" in result.sql
@@ -332,7 +366,9 @@ class TestTransformCompilation:
         def filter_recent(t):
             return t.filter(t.status == "active")
 
-        result = ibis_compiler.compile_table(feature_table, source_schema=source_schema)
+        result = ibis_compiler.compile_table(
+            feature_table, source_schema=source_schema
+        )
 
         # Both filters should be present
         assert "> 0" in result.sql
@@ -345,7 +381,9 @@ class TestTransformCompilation:
 
 
 class TestSQLDeterminism:
-    def test_sql_is_deterministic(self, user_entity, transaction_source, ibis_compiler):
+    def test_sql_is_deterministic(
+        self, user_entity, transaction_source, ibis_compiler
+    ):
         """Same input should produce identical SQL."""
 
         def _make_table():
@@ -377,8 +415,12 @@ class TestSQLDeterminism:
             "event_timestamp": "datetime",
         }
 
-        result1 = ibis_compiler.compile_table(_make_table(), source_schema=schema)
-        result2 = ibis_compiler.compile_table(_make_table(), source_schema=schema)
+        result1 = ibis_compiler.compile_table(
+            _make_table(), source_schema=schema
+        )
+        result2 = ibis_compiler.compile_table(
+            _make_table(), source_schema=schema
+        )
 
         assert result1.sql == result2.sql
 
@@ -439,7 +481,9 @@ class TestSchemaInference:
         assert "SUM" in result.sql
         assert "spend_90d" in result.sql
 
-    def test_infer_schema_includes_join_keys(self, feature_table, ibis_compiler):
+    def test_infer_schema_includes_join_keys(
+        self, feature_table, ibis_compiler
+    ):
         feature_table.aggregate(
             name="spend_90d",
             field=core.Field(dtype="float64"),

@@ -70,7 +70,9 @@ class TestLoadStrataSettings:
 
     def test_load_valid_config(self, valid_config: str) -> None:
         """Valid configuration loads successfully."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(valid_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -81,7 +83,9 @@ class TestLoadStrataSettings:
 
     def test_load_full_config(self, full_config: str) -> None:
         """Full configuration with all options loads successfully."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -101,7 +105,9 @@ class TestLoadStrataSettings:
 
     def test_invalid_yaml_raises_validation_error(self) -> None:
         """Invalid YAML raises ConfigValidationError."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write("name: test\ndefault_env: dev\n# missing environments")
             f.flush()
             with pytest.raises(errors.ConfigValidationError):
@@ -122,7 +128,9 @@ environments:
       path: .strata/data
       catalog: test
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(config_str)
             f.flush()
             with pytest.raises(errors.ConfigValidationError) as exc_info:
@@ -136,7 +144,9 @@ class TestEnvironmentResolution:
 
     def test_resolve_default_environment(self, full_config: str) -> None:
         """Default environment is resolved correctly."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -146,7 +156,9 @@ class TestEnvironmentResolution:
 
     def test_resolve_specific_environment(self, full_config: str) -> None:
         """Specific environment can be resolved."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name), env="prd")
@@ -158,7 +170,9 @@ class TestEnvironmentResolution:
         self, full_config: str
     ) -> None:
         """Resolving nonexistent environment raises EnvironmentNotFoundError."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             with pytest.raises(errors.EnvironmentNotFoundError) as exc_info:
@@ -173,7 +187,9 @@ class TestScheduleValidation:
 
     def test_validate_valid_schedule(self, full_config: str) -> None:
         """Valid schedule tag passes validation."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -183,9 +199,13 @@ class TestScheduleValidation:
         config.validate_schedule("hourly")
         config.validate_schedule("weekly")
 
-    def test_validate_invalid_schedule_raises_error(self, full_config: str) -> None:
+    def test_validate_invalid_schedule_raises_error(
+        self, full_config: str
+    ) -> None:
         """Invalid schedule tag raises InvalidScheduleError."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -198,7 +218,9 @@ class TestScheduleValidation:
 
     def test_no_schedules_allows_any(self, valid_config: str) -> None:
         """When no schedules defined, any schedule is allowed."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(valid_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -212,7 +234,9 @@ class TestPathsConfiguration:
 
     def test_no_paths_uses_smart_discovery(self, valid_config: str) -> None:
         """No paths section uses SmartPathsSettings with defaults."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(valid_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -223,7 +247,9 @@ class TestPathsConfiguration:
 
     def test_legacy_paths_uses_legacy_settings(self, full_config: str) -> None:
         """Legacy paths (tables/datasets/entities) use LegacyPathsSettings."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -253,7 +279,9 @@ environments:
       path: .strata/data
       catalog: test_catalog
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(config_str)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))
@@ -281,7 +309,9 @@ environments:
       path: .strata/data
       catalog: test_catalog
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(config_str)
             f.flush()
             with pytest.raises(errors.ConfigValidationError) as exc_info:
@@ -306,7 +336,9 @@ class TestCatalogInjection:
 
     def test_catalog_available_per_environment(self, full_config: str) -> None:
         """Each environment has its own catalog."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(full_config)
             f.flush()
 
@@ -318,7 +350,9 @@ class TestCatalogInjection:
 
     def test_catalog_optional(self, valid_config: str) -> None:
         """Catalog is optional."""
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".yaml", delete=False
+        ) as f:
             f.write(valid_config)
             f.flush()
             config = settings.load_strata_settings(Path(f.name))

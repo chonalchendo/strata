@@ -136,7 +136,9 @@ class DefinitionDiscoverer:
 
         return discovered
 
-    def _should_exclude(self, py_file: Path, exclude_patterns: list[str]) -> bool:
+    def _should_exclude(
+        self, py_file: Path, exclude_patterns: list[str]
+    ) -> bool:
         """Check if a file should be excluded based on patterns.
 
         Patterns can match:
@@ -354,7 +356,8 @@ def _serialize_source_table(table: core.SourceTable) -> dict[str, Any]:
     # Include schema fields if defined
     if table.schema_:
         spec["schema"] = {
-            name: _serialize_field(field) for name, field in table.schema_.fields()
+            name: _serialize_field(field)
+            for name, field in table.schema_.fields()
         }
 
     return spec

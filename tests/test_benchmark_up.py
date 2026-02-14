@@ -88,7 +88,7 @@ entity_{i:03d} = core.Entity(
             f"""
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 # Reference entity with matching spec (same as entities/entity_{entity_idx:03d}.py)
 entity_{entity_idx:03d} = core.Entity(
@@ -125,7 +125,9 @@ class FakeRegistry:
     def initialize(self) -> None:
         pass
 
-    def list_objects(self, kind: str | None = None) -> list[reg_types.ObjectRecord]:
+    def list_objects(
+        self, kind: str | None = None
+    ) -> list[reg_types.ObjectRecord]:
         if kind is None:
             return list(self._objects.values())
         return [o for o in self._objects.values() if o.kind == kind]
@@ -146,14 +148,18 @@ class TestDiscoveryBenchmark:
     @pytest.mark.benchmark
     def test_discovery_50_files(self, tmp_path, monkeypatch):
         """Discover definitions from ~50 mock files."""
-        project_root = create_mock_project(tmp_path, num_entities=10, num_tables=40)
+        project_root = create_mock_project(
+            tmp_path, num_entities=10, num_tables=40
+        )
         monkeypatch.chdir(project_root)
 
         strata_settings = settings.load_strata_settings()
 
         # Time discovery
         t0 = time.perf_counter()
-        discoverer = discovery.DefinitionDiscoverer(strata_settings, project_root)
+        discoverer = discovery.DefinitionDiscoverer(
+            strata_settings, project_root
+        )
         discovered = discoverer.discover_all()
         t_discovery = time.perf_counter() - t0
 
@@ -168,11 +174,15 @@ class TestDiscoveryBenchmark:
         )
 
         # Print timing for visibility
-        print(f"\nDiscovery: {t_discovery * 1000:.1f}ms for {len(discovered)} objects")
+        print(
+            f"\nDiscovery: {t_discovery * 1000:.1f}ms for {len(discovered)} objects"
+        )
 
         # Soft assertion: discovery should be fast
         # This is a sanity check, not a hard requirement
-        assert t_discovery < 5.0, f"Discovery took {t_discovery:.2f}s, expected < 5s"
+        assert t_discovery < 5.0, (
+            f"Discovery took {t_discovery:.2f}s, expected < 5s"
+        )
 
 
 class TestDiffBenchmark:
@@ -181,7 +191,9 @@ class TestDiffBenchmark:
     @pytest.mark.benchmark
     def test_diff_50_creates(self, tmp_path, monkeypatch):
         """Compute diff for ~50 new definitions."""
-        project_root = create_mock_project(tmp_path, num_entities=10, num_tables=40)
+        project_root = create_mock_project(
+            tmp_path, num_entities=10, num_tables=40
+        )
         monkeypatch.chdir(project_root)
 
         strata_settings = settings.load_strata_settings()
@@ -213,7 +225,9 @@ class TestDiffBenchmark:
     @pytest.mark.benchmark
     def test_diff_no_changes(self, tmp_path, monkeypatch):
         """Compute diff when registry matches definitions (no changes)."""
-        project_root = create_mock_project(tmp_path, num_entities=10, num_tables=40)
+        project_root = create_mock_project(
+            tmp_path, num_entities=10, num_tables=40
+        )
         monkeypatch.chdir(project_root)
 
         strata_settings = settings.load_strata_settings()
@@ -266,7 +280,9 @@ class TestEndToEndBenchmark:
     @pytest.mark.benchmark
     def test_full_workflow_50_definitions(self, tmp_path, monkeypatch):
         """Measure end-to-end discovery -> diff -> apply time."""
-        project_root = create_mock_project(tmp_path, num_entities=10, num_tables=40)
+        project_root = create_mock_project(
+            tmp_path, num_entities=10, num_tables=40
+        )
         monkeypatch.chdir(project_root)
 
         strata_settings = settings.load_strata_settings()
@@ -303,16 +319,24 @@ class TestEndToEndBenchmark:
 
         # Print detailed timing
         print("\n=== Benchmark Results ===")
-        print(f"Discovery: {t_discovery * 1000:.1f}ms ({len(discovered)} objects)")
-        print(f"Diff:      {t_diff * 1000:.1f}ms ({len(result.changes)} changes)")
-        print(f"Apply:     {t_apply * 1000:.1f}ms ({len(result.creates)} creates)")
+        print(
+            f"Discovery: {t_discovery * 1000:.1f}ms ({len(discovered)} objects)"
+        )
+        print(
+            f"Diff:      {t_diff * 1000:.1f}ms ({len(result.changes)} changes)"
+        )
+        print(
+            f"Apply:     {t_apply * 1000:.1f}ms ({len(result.creates)} creates)"
+        )
         print(f"Total:     {t_total * 1000:.1f}ms")
         print("=========================")
 
         # Sanity check: total should be reasonable
         # Note: This is intentionally generous. Real optimization targets
         # should be set based on actual user feedback, not arbitrary limits.
-        assert t_total < 10.0, f"Total workflow took {t_total:.2f}s, expected < 10s"
+        assert t_total < 10.0, (
+            f"Total workflow took {t_total:.2f}s, expected < 10s"
+        )
 
         # Verify correctness: registry should have unique objects
         # 10 unique entities + 40 unique tables = 50 objects

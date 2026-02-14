@@ -111,9 +111,7 @@ class TestFreshnessNoBuildRecord:
             sla=checks.SLA(max_staleness=timedelta(hours=6)),
         )
 
-        result = freshness_mod.check_freshness(
-            [table], {"users": None}
-        )
+        result = freshness_mod.check_freshness([table], {"users": None})
 
         assert result.tables[0].status == "unknown"
         assert result.tables[0].last_build_at is None

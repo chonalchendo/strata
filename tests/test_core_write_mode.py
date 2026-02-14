@@ -4,7 +4,7 @@ import pytest
 
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 
 @pytest.fixture
@@ -97,7 +97,9 @@ class TestEffectiveMergeKeys:
         assert table.effective_merge_keys == ["user_id", "event_date"]
 
     def test_multi_key_entity(self, source):
-        entity = core.Entity(name="user_device", join_keys=["user_id", "device_id"])
+        entity = core.Entity(
+            name="user_device", join_keys=["user_id", "device_id"]
+        )
         table = core.FeatureTable(
             name="test",
             source=source,

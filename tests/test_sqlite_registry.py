@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 
-import strata.backends.sqlite as sqlite
+import strata.infra.backends.sqlite as sqlite
 import strata.registry as registry
 
 
@@ -142,7 +142,11 @@ class TestSqliteRegistryObjects:
             version=1,
         )
         obj3 = registry.ObjectRecord(
-            kind="entity", name="product", spec_hash="c", spec_json="{}", version=1
+            kind="entity",
+            name="product",
+            spec_hash="c",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj1, applied_by="test@host")
         reg.put_object(obj2, applied_by="test@host")
@@ -159,13 +163,21 @@ class TestSqliteRegistryObjects:
         reg.initialize()
 
         obj1 = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="v1", spec_json='{"v": 1}', version=1
+            kind="entity",
+            name="user",
+            spec_hash="v1",
+            spec_json='{"v": 1}',
+            version=1,
         )
         reg.put_object(obj1, applied_by="test@host")
 
         # Update with new hash
         obj2 = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="v2", spec_json='{"v": 2}', version=1
+            kind="entity",
+            name="user",
+            spec_hash="v2",
+            spec_json='{"v": 2}',
+            version=1,
         )
         reg.put_object(obj2, applied_by="test@host")
 
@@ -181,7 +193,11 @@ class TestSqliteRegistryObjects:
         reg.initialize()
 
         obj = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="abc", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="abc",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj, applied_by="test@host")
         assert reg.get_object("entity", "user") is not None
@@ -209,7 +225,11 @@ class TestSqliteRegistryChangelog:
         reg.initialize()
 
         obj = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="abc", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="abc",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj, applied_by="test@host")
 
@@ -228,12 +248,20 @@ class TestSqliteRegistryChangelog:
         reg.initialize()
 
         obj1 = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="v1", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="v1",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj1, applied_by="test@host")
 
         obj2 = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="v2", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="v2",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj2, applied_by="test@host")
 
@@ -251,7 +279,11 @@ class TestSqliteRegistryChangelog:
         reg.initialize()
 
         obj = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="abc", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="abc",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj, applied_by="test@host")
         reg.delete_object("entity", "user", applied_by="test@host")
@@ -323,7 +355,11 @@ class TestSqliteRegistryMeta:
         assert reg.get_meta("serial") == "0"
 
         obj = registry.ObjectRecord(
-            kind="entity", name="user", spec_hash="abc", spec_json="{}", version=1
+            kind="entity",
+            name="user",
+            spec_hash="abc",
+            spec_json="{}",
+            version=1,
         )
         reg.put_object(obj, applied_by="test@host")
         assert reg.get_meta("serial") == "1"

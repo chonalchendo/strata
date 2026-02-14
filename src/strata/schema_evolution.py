@@ -108,7 +108,11 @@ def _classify_type_change(
         return SchemaChangeType.NO_CHANGE
 
     # Check within same type families
-    for order in (_INT_WIDENING_ORDER, _UINT_WIDENING_ORDER, _FLOAT_WIDENING_ORDER):
+    for order in (
+        _INT_WIDENING_ORDER,
+        _UINT_WIDENING_ORDER,
+        _FLOAT_WIDENING_ORDER,
+    ):
         old_idx = _type_index(old_type, order)
         new_idx = _type_index(new_type, order)
 
@@ -223,7 +227,8 @@ def detect_schema_changes(
     if requires_backfill:
         overall_action = MigrationAction.FULL_BACKFILL
     elif any(
-        c.migration_action == MigrationAction.CONTINUE_INCREMENTAL for c in changes
+        c.migration_action == MigrationAction.CONTINUE_INCREMENTAL
+        for c in changes
     ):
         overall_action = MigrationAction.CONTINUE_INCREMENTAL
     else:

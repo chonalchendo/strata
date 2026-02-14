@@ -95,13 +95,17 @@ def render_apply_progress(change: diff.Change) -> None:
             f"  [yellow]~[/yellow] Updating {change.kind} [yellow]{change.name}[/yellow]"
         )
     elif change.operation == diff.ChangeOperation.DELETE:
-        console.print(f"  [red]-[/red] Deleting {change.kind} [red]{change.name}[/red]")
+        console.print(
+            f"  [red]-[/red] Deleting {change.kind} [red]{change.name}[/red]"
+        )
 
 
 def render_apply_complete(result: diff.DiffResult) -> None:
     """Render completion message after apply."""
     console.print()
-    console.print(f"[bold green]Apply complete![/bold green] {result.summary()}")
+    console.print(
+        f"[bold green]Apply complete![/bold green] {result.summary()}"
+    )
 
 
 def render_no_changes() -> None:
@@ -112,7 +116,9 @@ def render_no_changes() -> None:
 def prompt_apply() -> bool:
     """Prompt user to confirm apply. Returns True if confirmed."""
     console.print()
-    response = console.input("[bold]Apply these changes?[/bold] [dim](y/N)[/dim] ")
+    response = console.input(
+        "[bold]Apply these changes?[/bold] [dim](y/N)[/dim] "
+    )
     return response.lower() in ("y", "yes")
 
 

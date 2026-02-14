@@ -70,7 +70,7 @@ class TestDownCommand:
                 run_cli(["up", "--yes"])
 
         # Verify objects exist
-        from strata.backends.sqlite.registry import SqliteRegistry
+        from strata.infra.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -93,7 +93,7 @@ class TestDownCommand:
             with patch.object(output_mod.console, "print"):
                 run_cli(["up", "--yes"])
 
-        from strata.backends.sqlite.registry import SqliteRegistry
+        from strata.infra.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_with_objects / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -123,7 +123,9 @@ class TestDownCommand:
 
         assert exc_info.value.code == 1
 
-    def test_down_nonexistent_object_no_error(self, project_with_objects, monkeypatch):
+    def test_down_nonexistent_object_no_error(
+        self, project_with_objects, monkeypatch
+    ):
         """down nonexistent object should not error, just warn."""
         monkeypatch.chdir(project_with_objects)
 
@@ -135,7 +137,9 @@ class TestDownCommand:
         with patch.object(cli_mod.console, "print"):
             run_cli(["down", "entity", "nonexistent", "--yes"])
 
-    def test_down_requires_both_kind_and_name(self, project_with_objects, monkeypatch):
+    def test_down_requires_both_kind_and_name(
+        self, project_with_objects, monkeypatch
+    ):
         """down with only kind should error."""
         monkeypatch.chdir(project_with_objects)
 

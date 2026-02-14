@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
-import strata.backends.base as base
+import strata.infra.backends.base as base
 import strata.registry as registry
 
 # Strata version for meta table
@@ -124,7 +124,9 @@ class SqliteRegistry(base.BaseRegistry):
                     "INSERT INTO meta (key, value) VALUES ('lineage', ?)",
                     (str(uuid.uuid4()),),
                 )
-                cursor.execute("INSERT INTO meta (key, value) VALUES ('serial', '0')")
+                cursor.execute(
+                    "INSERT INTO meta (key, value) VALUES ('serial', '0')"
+                )
                 cursor.execute(
                     "INSERT INTO meta (key, value) VALUES ('strata_version', ?)",
                     (_STRATA_VERSION,),
@@ -156,7 +158,9 @@ class SqliteRegistry(base.BaseRegistry):
         finally:
             conn.close()
 
-    def list_objects(self, kind: str | None = None) -> list[registry.ObjectRecord]:
+    def list_objects(
+        self, kind: str | None = None
+    ) -> list[registry.ObjectRecord]:
         """List all objects, optionally filtered by kind."""
         conn = self._connect()
         try:
@@ -199,7 +203,13 @@ class SqliteRegistry(base.BaseRegistry):
                 new_version = existing.version + 1
                 cursor.execute(
                     "UPDATE objects SET spec_hash = ?, spec_json = ?, version = ? WHERE kind = ? AND name = ?",
-                    (obj.spec_hash, obj.spec_json, new_version, obj.kind, obj.name),
+                    (
+                        obj.spec_hash,
+                        obj.spec_json,
+                        new_version,
+                        obj.kind,
+                        obj.name,
+                    ),
                 )
                 # Log update
                 cursor.execute(

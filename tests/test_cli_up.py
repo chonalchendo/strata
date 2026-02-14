@@ -120,7 +120,7 @@ class TestUpCommand:
                 run_cli(["up", "--yes"])
 
         # Check registry has the entity
-        from strata.backends.sqlite.registry import SqliteRegistry
+        from strata.infra.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_dir / ".strata" / "registry.db"
         reg = SqliteRegistry(kind="sqlite", path=str(registry_path))
@@ -139,7 +139,7 @@ class TestUpCommand:
                 run_cli(["up"])
 
         # Registry should exist but be empty (initialized but no objects applied)
-        from strata.backends.sqlite.registry import SqliteRegistry
+        from strata.infra.backends.sqlite.registry import SqliteRegistry
 
         registry_path = project_dir / ".strata" / "registry.db"
         if registry_path.exists():

@@ -138,7 +138,10 @@ class TestQualityNoResults:
 
         output_str = " ".join(printed)
         assert "No quality results found" in output_str
-        assert "strata build" in output_str or "strata quality --live" in output_str
+        assert (
+            "strata build" in output_str
+            or "strata quality --live" in output_str
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +273,9 @@ class TestQualityExitCodeOnFailure:
 
 
 class TestQualityWarningsStillPass:
-    def test_warn_severity_does_not_exit_nonzero(self, project_dir, monkeypatch):
+    def test_warn_severity_does_not_exit_nonzero(
+        self, project_dir, monkeypatch
+    ):
         """Warn-severity failures should NOT cause exit code 1."""
         monkeypatch.chdir(project_dir)
 

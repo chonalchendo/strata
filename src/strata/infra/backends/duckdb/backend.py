@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, Literal, override
 import pyarrow as pa
 import pydantic as pdt
 
-import strata.backends.base as base
+import strata.infra.backends.base as base
 import strata.formats as formats
 
 if TYPE_CHECKING:
@@ -52,7 +52,9 @@ class DuckDBBackend(base.BaseBackend):
     extensions: list[str] = pdt.Field(default_factory=list)
     path: str
     catalog: str
-    format: Annotated[formats.FormatKind, pdt.Field(discriminator="kind")] = formats.ParquetFormat()
+    format: Annotated[formats.FormatKind, pdt.Field(discriminator="kind")] = (
+        formats.ParquetFormat()
+    )
     motherduck_token: str | None = None
 
     def _table_path(self, table_name: str) -> Path:

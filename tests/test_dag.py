@@ -6,7 +6,7 @@ import strata.core as core
 import strata.dag as dag
 import strata.errors as errors
 import strata.sources as sources
-import strata.backends.local.storage as local_storage
+import strata.infra.backends.local.storage as local_storage
 
 
 @pytest.fixture
@@ -145,13 +145,17 @@ class TestDAGLinearChain:
         result = d.get_upstream("third_features", include_self=False)
         assert result == ["base_features", "derived_features"]
 
-    def test_get_upstream_of_middle(self, base_table, derived_table, third_table):
+    def test_get_upstream_of_middle(
+        self, base_table, derived_table, third_table
+    ):
         d = dag.DAG()
         d.add_tables([base_table, derived_table, third_table])
         result = d.get_upstream("derived_features")
         assert result == ["base_features", "derived_features"]
 
-    def test_get_downstream_of_root(self, base_table, derived_table, third_table):
+    def test_get_downstream_of_root(
+        self, base_table, derived_table, third_table
+    ):
         d = dag.DAG()
         d.add_tables([base_table, derived_table, third_table])
         result = d.get_downstream("base_features")
@@ -201,7 +205,9 @@ class TestDAGDiamond:
         # branch_b must come before diamond_end
         assert result.index("branch_b") < result.index("diamond_end")
 
-    def test_diamond_upstream_of_end(self, user_entity, batch_source, base_table):
+    def test_diamond_upstream_of_end(
+        self, user_entity, batch_source, base_table
+    ):
         """Upstream of diamond end includes transitive dependencies."""
         table_b = core.FeatureTable(
             name="branch_b",

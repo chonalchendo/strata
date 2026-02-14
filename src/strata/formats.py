@@ -15,7 +15,9 @@ import pyarrow.parquet as pq
 import pydantic as pdt
 
 
-class BaseFormat(abc.ABC, pdt.BaseModel, frozen=True, strict=True, extra="forbid"):
+class BaseFormat(
+    abc.ABC, pdt.BaseModel, frozen=True, strict=True, extra="forbid"
+):
     """Abstract base for data formats.
 
     Each concrete format handles its own read/write logic.
@@ -129,7 +131,9 @@ class DeltaFormat(BaseFormat):
         if mode == "merge" and merge_keys:
             if dl.DeltaTable.is_deltatable(str_path):
                 dt = dl.DeltaTable(str_path)
-                predicate = " AND ".join(f"target.{k} = source.{k}" for k in merge_keys)
+                predicate = " AND ".join(
+                    f"target.{k} = source.{k}" for k in merge_keys
+                )
                 (
                     dt.merge(
                         source=data,
@@ -174,7 +178,9 @@ class DeltaFormat(BaseFormat):
             return  # Nothing to delete
 
         dt = dl.DeltaTable(str_path)
-        predicate = f"{partition_col} >= '{start}' AND {partition_col} < '{end}'"
+        predicate = (
+            f"{partition_col} >= '{start}' AND {partition_col} < '{end}'"
+        )
         dt.delete(predicate)
 
 
@@ -224,7 +230,9 @@ class ParquetFormat(BaseFormat):
         pq.write_table(
             data,
             str(path),
-            compression=self.compression if self.compression != "none" else None,
+            compression=self.compression
+            if self.compression != "none"
+            else None,
         )
 
 

@@ -7,7 +7,7 @@ import pytest
 import strata.core as core
 import strata.discovery as discovery
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 
 class TestSerializeEntity:
@@ -61,7 +61,9 @@ class TestSerializeFeatureTable:
         assert spec["source"]["type"] == "batch_source"
         assert spec["source"]["name"] == "transactions"
 
-    def test_serialize_feature_table_with_aggregate(self, user_entity, batch_source):
+    def test_serialize_feature_table_with_aggregate(
+        self, user_entity, batch_source
+    ):
         table = core.FeatureTable(
             name="user_features",
             source=batch_source,
@@ -557,7 +559,7 @@ user = core.Entity(name="user", join_keys=["user_id"])
             """
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 user = core.Entity(name="user", join_keys=["user_id"])
 batch = sources.BatchSource(
@@ -607,7 +609,9 @@ environments:
         strata_settings = settings_mod.load_strata_settings()
 
         # Verify legacy settings type
-        assert isinstance(strata_settings.paths, settings_mod.LegacyPathsSettings)
+        assert isinstance(
+            strata_settings.paths, settings_mod.LegacyPathsSettings
+        )
 
         discoverer = discovery.DefinitionDiscoverer(strata_settings)
         result = discoverer.discover_all()

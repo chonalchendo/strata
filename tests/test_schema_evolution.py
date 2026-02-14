@@ -65,7 +65,9 @@ class TestColumnAdded:
         result = evo.detect_schema_changes(base_schema, new_schema)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.COLUMN_ADDED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.COLUMN_ADDED
+        )
         assert result.changes[0].column_name == "category"
         assert result.requires_backfill is True
         assert result.migration_action == evo.MigrationAction.FULL_BACKFILL
@@ -88,10 +90,14 @@ class TestColumnRemoved:
         result = evo.detect_schema_changes(base_schema, new_schema)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.COLUMN_REMOVED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.COLUMN_REMOVED
+        )
         assert result.changes[0].column_name == "amount"
         assert result.requires_backfill is False
-        assert result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        assert (
+            result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -107,10 +113,14 @@ class TestTypeWidened:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        )
         assert result.changes[0].column_name == "count"
         assert result.requires_backfill is False
-        assert result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        assert (
+            result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        )
 
     def test_float32_to_float64_is_widening(self):
         """float32 -> float64 is widening, continue incremental."""
@@ -119,7 +129,9 @@ class TestTypeWidened:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        )
         assert result.requires_backfill is False
 
     def test_int_to_float_is_widening(self):
@@ -129,7 +141,9 @@ class TestTypeWidened:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_WIDENED
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -145,7 +159,9 @@ class TestTypeNarrowed:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        )
         assert result.changes[0].column_name == "count"
         assert result.requires_backfill is True
         assert result.migration_action == evo.MigrationAction.FULL_BACKFILL
@@ -157,7 +173,9 @@ class TestTypeNarrowed:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        )
         assert result.requires_backfill is True
 
     def test_cross_family_is_narrowing(self):
@@ -167,7 +185,9 @@ class TestTypeNarrowed:
         result = evo.detect_schema_changes(old, new)
 
         assert len(result.changes) == 1
-        assert result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        assert (
+            result.changes[0].change_type == evo.SchemaChangeType.TYPE_NARROWED
+        )
         assert result.requires_backfill is True
 
 
@@ -226,4 +246,6 @@ class TestMultipleChanges:
 
         assert len(result.changes) == 2
         assert result.requires_backfill is False
-        assert result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        assert (
+            result.migration_action == evo.MigrationAction.CONTINUE_INCREMENTAL
+        )

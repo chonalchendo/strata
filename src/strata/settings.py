@@ -15,8 +15,7 @@ import pydantic as pdt
 import pydantic_settings as pdts
 
 import strata.errors as errors
-import strata.backends as backends
-import strata.serving as serving
+import strata.infra as infra
 
 
 class Settings(pdts.BaseSettings, strict=True, frozen=True, extra="forbid"):
@@ -69,7 +68,9 @@ class SmartPathsSettings(Settings):
     ]
 
 
-def _discriminate_paths(v: dict | LegacyPathsSettings | SmartPathsSettings) -> str:
+def _discriminate_paths(
+    v: dict | LegacyPathsSettings | SmartPathsSettings,
+) -> str:
     """Discriminate between legacy and smart paths configuration."""
     if isinstance(v, SmartPathsSettings):
         return "smart"
@@ -105,9 +106,9 @@ class EnvironmentSettings(Settings):
     """
 
     catalog: str | None = None
-    registry: backends.RegistryKind = pdt.Field(..., discriminator="kind")
-    backend: backends.BackendKind = pdt.Field(..., discriminator="kind")
-    online_store: serving.OnlineStoreKind | None = None
+    registry: infra.RegistryKind = pdt.Field(..., discriminator="kind")
+    backend: infra.BackendKind = pdt.Field(..., discriminator="kind")
+    online_store: infra.OnlineStoreKind | None = None
 
 
 class StrataSettings(Settings):

@@ -12,7 +12,7 @@ import pytest
 import strata.build as build_mod
 import strata.core as core
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +173,9 @@ class TestBuildResult:
                     table_name="a", status=build_mod.BuildStatus.SUCCESS
                 ),
                 build_mod.TableBuildResult(
-                    table_name="b", status=build_mod.BuildStatus.FAILED, error="boom"
+                    table_name="b",
+                    status=build_mod.BuildStatus.FAILED,
+                    error="boom",
                 ),
                 build_mod.TableBuildResult(
                     table_name="c", status=build_mod.BuildStatus.SKIPPED
@@ -518,7 +520,9 @@ class TestUpstreamFailureCascade:
 
 
 class TestFullRefresh:
-    def test_drops_table_before_rebuild(self, build_engine, mock_backend, single_table):
+    def test_drops_table_before_rebuild(
+        self, build_engine, mock_backend, single_table
+    ):
         """full_refresh should drop the table and write with overwrite mode."""
         build_engine.build(tables=[single_table], full_refresh=True)
 
@@ -561,7 +565,9 @@ class TestFullRefresh:
 
 
 class TestDateRangeBackfill:
-    def test_deletes_range_before_write(self, build_engine, mock_backend, single_table):
+    def test_deletes_range_before_write(
+        self, build_engine, mock_backend, single_table
+    ):
         """start/end should delete existing data in range then append."""
         start_dt = datetime(2024, 1, 1)
         end_dt = datetime(2024, 1, 31)
@@ -612,7 +618,9 @@ class TestDateRangeBackfill:
 
 
 class TestSourceRegistration:
-    def test_external_source_registered(self, build_engine, mock_backend, single_table):
+    def test_external_source_registered(
+        self, build_engine, mock_backend, single_table
+    ):
         """External BatchSource should be registered with the backend."""
         build_engine.build(tables=[single_table])
 
@@ -700,7 +708,11 @@ class TestBuildFailureHandling:
 
 
 def _make_validation_result(
-    *, table_name="test_table", passed=True, has_warnings=False, field_results=None
+    *,
+    table_name="test_table",
+    passed=True,
+    has_warnings=False,
+    field_results=None,
 ):
     """Create a mock TableValidationResult."""
     import strata.quality as quality
@@ -802,7 +814,9 @@ class TestBuildWithValidation:
             table_name="user_transactions", passed=True
         )
 
-        with patch("strata.quality.validate_table", return_value=passing_result):
+        with patch(
+            "strata.quality.validate_table", return_value=passing_result
+        ):
             result = engine.build(tables=[table])
 
         assert result.success_count == 1
@@ -829,9 +843,13 @@ class TestBuildWithValidation:
             timestamp_field="event_timestamp",
         )
 
-        failing_result = _make_failing_validation(table_name="user_transactions")
+        failing_result = _make_failing_validation(
+            table_name="user_transactions"
+        )
 
-        with patch("strata.quality.validate_table", return_value=failing_result):
+        with patch(
+            "strata.quality.validate_table", return_value=failing_result
+        ):
             result = engine.build(tables=[table])
 
         assert result.failed_count == 1
@@ -912,7 +930,9 @@ class TestBuildWithValidation:
 
         failing_result = _make_failing_validation(table_name="base_features")
 
-        with patch("strata.quality.validate_table", return_value=failing_result):
+        with patch(
+            "strata.quality.validate_table", return_value=failing_result
+        ):
             result = engine.build(tables=[base_table, derived_table])
 
         assert result.failed_count == 1
@@ -942,9 +962,13 @@ class TestBuildWithValidation:
             timestamp_field="event_timestamp",
         )
 
-        warning_result = _make_warning_validation(table_name="user_transactions")
+        warning_result = _make_warning_validation(
+            table_name="user_transactions"
+        )
 
-        with patch("strata.quality.validate_table", return_value=warning_result):
+        with patch(
+            "strata.quality.validate_table", return_value=warning_result
+        ):
             result = engine.build(tables=[table])
 
         assert result.success_count == 1

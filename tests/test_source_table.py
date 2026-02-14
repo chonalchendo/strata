@@ -2,7 +2,7 @@ import pytest
 
 import strata.core as core
 import strata.sources as sources
-from strata.backends.duckdb import DuckDBSourceConfig
+from strata.infra.backends.duckdb import DuckDBSourceConfig
 
 
 @pytest.fixture
@@ -57,7 +57,9 @@ class TestSourceTable:
         assert feature.name == "lifetime_value"
         assert feature.table_name == "customer_features"
 
-    def test_feature_access_unknown_raises_error(self, user_entity, customer_source):
+    def test_feature_access_unknown_raises_error(
+        self, user_entity, customer_source
+    ):
         table = core.SourceTable(
             name="customer_features",
             source=customer_source,

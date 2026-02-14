@@ -37,7 +37,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.initialize() not implemented")
 
-    def get_object(self, kind: str, name: str) -> "registry.ObjectRecord | None":
+    def get_object(
+        self, kind: str, name: str
+    ) -> "registry.ObjectRecord | None":
         """Fetch a single object by kind and name.
 
         Args:
@@ -49,7 +51,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.get_object() not implemented")
 
-    def list_objects(self, kind: str | None = None) -> "list[registry.ObjectRecord]":
+    def list_objects(
+        self, kind: str | None = None
+    ) -> "list[registry.ObjectRecord]":
         """List all objects, optionally filtered by kind.
 
         Args:
@@ -102,7 +106,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.set_meta() not implemented")
 
-    def get_changelog(self, limit: int = 100) -> "list[registry.ChangelogEntry]":
+    def get_changelog(
+        self, limit: int = 100
+    ) -> "list[registry.ChangelogEntry]":
         """Get recent changelog entries.
 
         Args:
@@ -113,13 +119,17 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.get_changelog() not implemented")
 
-    def put_quality_result(self, result: "registry.QualityResultRecord") -> None:
+    def put_quality_result(
+        self, result: "registry.QualityResultRecord"
+    ) -> None:
         """Store a quality validation result.
 
         Args:
             result: Quality result record to persist.
         """
-        raise NotImplementedError("Registry.put_quality_result() not implemented")
+        raise NotImplementedError(
+            "Registry.put_quality_result() not implemented"
+        )
 
     def get_quality_results(
         self, table_name: str, limit: int = 10
@@ -133,7 +143,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         Returns:
             List of QualityResultRecord instances, newest first.
         """
-        raise NotImplementedError("Registry.get_quality_results() not implemented")
+        raise NotImplementedError(
+            "Registry.get_quality_results() not implemented"
+        )
 
     def put_build_record(self, record: "registry.BuildRecord") -> None:
         """Store a build execution record.
@@ -143,7 +155,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         """
         raise NotImplementedError("Registry.put_build_record() not implemented")
 
-    def get_latest_build(self, table_name: str) -> "registry.BuildRecord | None":
+    def get_latest_build(
+        self, table_name: str
+    ) -> "registry.BuildRecord | None":
         """Get the most recent build record for a table.
 
         Args:
@@ -166,7 +180,9 @@ class BaseRegistry(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):
         Returns:
             List of BuildRecord instances, newest first.
         """
-        raise NotImplementedError("Registry.get_build_records() not implemented")
+        raise NotImplementedError(
+            "Registry.get_build_records() not implemented"
+        )
 
 
 class BaseBackend(pdt.BaseModel, strict=True, frozen=True, extra="forbid"):

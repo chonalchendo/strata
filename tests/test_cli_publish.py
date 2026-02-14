@@ -32,7 +32,7 @@ def _make_feature_table(
     *,
     online: bool = True,
 ) -> core.FeatureTable:
-    from strata.backends.local import LocalSourceConfig
+    from strata.infra.backends.local import LocalSourceConfig
 
     source = sources.BatchSource(
         name="events",
@@ -83,8 +83,13 @@ class TestPublishNoOnlineStore:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch.object(cli_mod.console, "print", capture_print),
         ):
             with pytest.raises(SystemExit) as exc_info:
@@ -119,8 +124,13 @@ class TestPublishNoOnlineTables:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch.object(cli_mod.console, "print", capture_print),
         ):
             run_cli(["publish"])
@@ -144,11 +154,13 @@ class TestPublishSpecificTable:
 
         mock_backend = MagicMock()
         mock_backend.table_exists.return_value = True
-        mock_backend.read_table.return_value = pa.table({
-            "user_id": ["u1", "u2"],
-            "spend": [100.0, 200.0],
-            "event_ts": ["2024-01-01", "2024-01-02"],
-        })
+        mock_backend.read_table.return_value = pa.table(
+            {
+                "user_id": ["u1", "u2"],
+                "spend": [100.0, 200.0],
+                "event_ts": ["2024-01-01", "2024-01-02"],
+            }
+        )
 
         mock_online = MagicMock()
         mock_settings = MagicMock()
@@ -161,8 +173,13 @@ class TestPublishSpecificTable:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch.object(cli_mod.console, "print", capture_print),
         ):
             run_cli(["publish", "user_features"])
@@ -191,11 +208,13 @@ class TestPublishJsonOutput:
 
         mock_backend = MagicMock()
         mock_backend.table_exists.return_value = True
-        mock_backend.read_table.return_value = pa.table({
-            "user_id": ["u1", "u2", "u3"],
-            "spend": [100.0, 200.0, 300.0],
-            "event_ts": ["2024-01-01", "2024-01-02", "2024-01-03"],
-        })
+        mock_backend.read_table.return_value = pa.table(
+            {
+                "user_id": ["u1", "u2", "u3"],
+                "spend": [100.0, 200.0, 300.0],
+                "event_ts": ["2024-01-01", "2024-01-02", "2024-01-03"],
+            }
+        )
 
         mock_online = MagicMock()
         mock_settings = MagicMock()
@@ -208,8 +227,13 @@ class TestPublishJsonOutput:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch.object(cli_mod.console, "print", capture_print),
         ):
             run_cli(["publish", "--json"])
@@ -241,11 +265,13 @@ class TestBuildWithPublishFlag:
 
         mock_backend = MagicMock()
         mock_backend.table_exists.return_value = True
-        mock_backend.read_table.return_value = pa.table({
-            "user_id": ["u1"],
-            "spend": [100.0],
-            "event_ts": ["2024-01-01"],
-        })
+        mock_backend.read_table.return_value = pa.table(
+            {
+                "user_id": ["u1"],
+                "spend": [100.0],
+                "event_ts": ["2024-01-01"],
+            }
+        )
 
         # Mock build engine result
         mock_build_result = MagicMock()
@@ -273,8 +299,13 @@ class TestBuildWithPublishFlag:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch("strata.build.BuildEngine", return_value=mock_engine),
             patch.object(cli_mod.console, "print", capture_print),
         ):
@@ -331,8 +362,13 @@ class TestPublishTableNotFound:
             printed.append(str(args[0]) if args else "")
 
         with (
-            patch("strata.settings.load_strata_settings", return_value=mock_settings),
-            patch("strata.discovery.discover_definitions", return_value=discovered),
+            patch(
+                "strata.settings.load_strata_settings",
+                return_value=mock_settings,
+            ),
+            patch(
+                "strata.discovery.discover_definitions", return_value=discovered
+            ),
             patch.object(cli_mod.console, "print", capture_print),
         ):
             with pytest.raises(SystemExit) as exc_info:

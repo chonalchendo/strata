@@ -6,7 +6,7 @@ write/read round-trip, drop_table, table_exists.
 
 import pyarrow as pa
 
-import strata.backends.duckdb.backend as duckdb_backend
+import strata.infra.backends.duckdb.backend as duckdb_backend
 import strata.formats as formats
 
 
@@ -283,7 +283,7 @@ class TestRegisterSource:
         conn = backend.connect()
 
         # Create a mock config with path and format
-        from strata.backends.local.storage import LocalSourceConfig
+        from strata.infra.backends.local.storage import LocalSourceConfig
 
         config = LocalSourceConfig(path=str(parquet_path), format="parquet")
         backend.register_source(conn, "my_source", config)
@@ -303,7 +303,7 @@ class TestRegisterSource:
         )
         conn = backend.connect()
 
-        from strata.backends.local.storage import LocalSourceConfig
+        from strata.infra.backends.local.storage import LocalSourceConfig
 
         config = LocalSourceConfig(path=str(csv_path), format="csv")
         backend.register_source(conn, "csv_source", config)

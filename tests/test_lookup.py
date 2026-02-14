@@ -51,7 +51,9 @@ environments:
 
 
 def _write_strata_yaml(
-    tmp_path: Path, *, with_online_store: bool = True,
+    tmp_path: Path,
+    *,
+    with_online_store: bool = True,
 ) -> Path:
     """Write a strata.yaml and return its path."""
     strata_dir = tmp_path / ".strata"
@@ -62,7 +64,9 @@ def _write_strata_yaml(
     online_path = str(strata_dir / "online.db")
     yaml_path = tmp_path / "strata.yaml"
 
-    template = _STRATA_YAML_ONLINE if with_online_store else _STRATA_YAML_NO_ONLINE
+    template = (
+        _STRATA_YAML_ONLINE if with_online_store else _STRATA_YAML_NO_ONLINE
+    )
     yaml_path.write_text(
         template.format(
             registry_path=registry_path,
@@ -78,7 +82,7 @@ def _make_entity() -> core.Entity:
 
 
 def _make_source(name: str = "events") -> sources.BatchSource:
-    from strata.backends.local import LocalSourceConfig
+    from strata.infra.backends.local import LocalSourceConfig
 
     return sources.BatchSource(
         name=name,
@@ -100,8 +104,12 @@ def _make_feature_table(
         timestamp_field="event_ts",
         online=True,
     )
-    spend = core.Feature(name="spend", table_name=name, field=core.Field(dtype="float64"))
-    txn_count = core.Feature(name="txn_count", table_name=name, field=core.Field(dtype="int64"))
+    spend = core.Feature(
+        name="spend", table_name=name, field=core.Field(dtype="float64")
+    )
+    txn_count = core.Feature(
+        name="txn_count", table_name=name, field=core.Field(dtype="int64")
+    )
     ft._features["spend"] = spend
     ft._features["txn_count"] = txn_count
     return ft
@@ -113,7 +121,9 @@ def _make_project_with_online(
     with_online_store: bool = True,
 ) -> project.StrataProject:
     """Create a StrataProject with optional online store."""
-    yaml_path = _write_strata_yaml(tmp_path, with_online_store=with_online_store)
+    yaml_path = _write_strata_yaml(
+        tmp_path, with_online_store=with_online_store
+    )
     strata_settings = settings.load_strata_settings(path=yaml_path)
     return project.StrataProject(strata_settings)
 
@@ -222,9 +232,13 @@ class TestLookupFeaturesTimestamp:
         result = bound_ds.lookup_features({"user_id": "123"})
 
         assert "_feature_timestamp" in result.column_names
-        assert result.to_pydict()["_feature_timestamp"] == ["2024-03-15T10:00:00Z"]
+        assert result.to_pydict()["_feature_timestamp"] == [
+            "2024-03-15T10:00:00Z"
+        ]
 
-    def test_lookup_features_missing_entity_timestamp_is_none(self, tmp_path: Path) -> None:
+    def test_lookup_features_missing_entity_timestamp_is_none(
+        self, tmp_path: Path
+    ) -> None:
         """Missing entity has None _feature_timestamp."""
         ft = _make_feature_table()
         proj = _make_project_with_online(tmp_path)
@@ -260,7 +274,9 @@ class TestLookupFeaturesNoOnlineStore:
         )
         bound_ds = _make_bound_dataset(proj, dataset, {"user_features": ft})
 
-        with pytest.raises(errors.StrataError, match="No online store configured"):
+        with pytest.raises(
+            errors.StrataError, match="No online store configured"
+        ):
             bound_ds.lookup_features({"user_id": "123"})
 
 
@@ -281,7 +297,11 @@ class TestLookupFeaturesMultipleTables:
             timestamp_field="event_ts",
             online=True,
         )
-        spend_feat = core.Feature(name="spend", table_name="user_spend", field=core.Field(dtype="float64"))
+        spend_feat = core.Feature(
+            name="spend",
+            table_name="user_spend",
+            field=core.Field(dtype="float64"),
+        )
         ft_spend._features["spend"] = spend_feat
 
         ft_clicks = core.FeatureTable(
@@ -291,7 +311,11 @@ class TestLookupFeaturesMultipleTables:
             timestamp_field="event_ts",
             online=True,
         )
-        clicks_feat = core.Feature(name="clicks", table_name="user_clicks", field=core.Field(dtype="int64"))
+        clicks_feat = core.Feature(
+            name="clicks",
+            table_name="user_clicks",
+            field=core.Field(dtype="int64"),
+        )
         ft_clicks._features["clicks"] = clicks_feat
 
         proj = _make_project_with_online(tmp_path)
@@ -317,7 +341,8 @@ class TestLookupFeaturesMultipleTables:
             prefix_features=False,
         )
         bound_ds = _make_bound_dataset(
-            proj, dataset,
+            proj,
+            dataset,
             {"user_spend": ft_spend, "user_clicks": ft_clicks},
         )
 
@@ -341,7 +366,11 @@ class TestLookupFeaturesMultipleTables:
             timestamp_field="event_ts",
             online=True,
         )
-        spend_feat = core.Feature(name="spend", table_name="user_spend", field=core.Field(dtype="float64"))
+        spend_feat = core.Feature(
+            name="spend",
+            table_name="user_spend",
+            field=core.Field(dtype="float64"),
+        )
         ft_spend._features["spend"] = spend_feat
 
         ft_clicks = core.FeatureTable(
@@ -351,7 +380,11 @@ class TestLookupFeaturesMultipleTables:
             timestamp_field="event_ts",
             online=True,
         )
-        clicks_feat = core.Feature(name="clicks", table_name="user_clicks", field=core.Field(dtype="int64"))
+        clicks_feat = core.Feature(
+            name="clicks",
+            table_name="user_clicks",
+            field=core.Field(dtype="int64"),
+        )
         ft_clicks._features["clicks"] = clicks_feat
 
         proj = _make_project_with_online(tmp_path)
@@ -371,7 +404,8 @@ class TestLookupFeaturesMultipleTables:
             prefix_features=False,
         )
         bound_ds = _make_bound_dataset(
-            proj, dataset,
+            proj,
+            dataset,
             {"user_spend": ft_spend, "user_clicks": ft_clicks},
         )
 

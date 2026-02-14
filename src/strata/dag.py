@@ -94,9 +94,13 @@ class DAG:
         in_degree: dict[str, int] = {}
         for name, node in self._nodes.items():
             # Only count upstream deps that are actually in the DAG
-            in_degree[name] = sum(1 for dep in node.upstream if dep in self._nodes)
+            in_degree[name] = sum(
+                1 for dep in node.upstream if dep in self._nodes
+            )
 
-        queue = sorted(name for name, degree in in_degree.items() if degree == 0)
+        queue = sorted(
+            name for name, degree in in_degree.items() if degree == 0
+        )
         result: list[str] = []
 
         while queue:
@@ -119,7 +123,9 @@ class DAG:
 
         return result
 
-    def get_upstream(self, table_name: str, *, include_self: bool = True) -> list[str]:
+    def get_upstream(
+        self, table_name: str, *, include_self: bool = True
+    ) -> list[str]:
         """Return all upstream dependencies in topological order.
 
         Args:

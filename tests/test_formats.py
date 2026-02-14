@@ -127,7 +127,9 @@ class TestParquetFormat:
         output = tmp_path / "test.parquet"
 
         with pytest.raises(NotImplementedError, match="merge"):
-            fmt.write(path=output, data=table, mode="merge", merge_keys=["user_id"])
+            fmt.write(
+                path=output, data=table, mode="merge", merge_keys=["user_id"]
+            )
 
     def test_write_creates_parent_dirs(self, tmp_path):
         """write() creates parent directories if they don't exist."""
@@ -213,7 +215,9 @@ class TestDeltaFormat:
         output = tmp_path / "delta_table"
 
         # Initial write
-        fmt.write(path=output, data=initial, mode="merge", merge_keys=["user_id"])
+        fmt.write(
+            path=output, data=initial, mode="merge", merge_keys=["user_id"]
+        )
 
         # Update u1's amount, add u4
         update = pa.table(
@@ -223,10 +227,14 @@ class TestDeltaFormat:
                 "ts": ["2024-01-01", "2024-01-04"],
             }
         )
-        fmt.write(path=output, data=update, mode="merge", merge_keys=["user_id"])
+        fmt.write(
+            path=output, data=update, mode="merge", merge_keys=["user_id"]
+        )
 
         result = fmt.read(path=output)
-        result_dict = {row["user_id"]: row["amount"] for row in result.to_pylist()}
+        result_dict = {
+            row["user_id"]: row["amount"] for row in result.to_pylist()
+        }
         assert result_dict["u1"] == 99.0  # Updated
         assert result_dict["u2"] == 20.0  # Unchanged
         assert result_dict["u4"] == 40.0  # Inserted

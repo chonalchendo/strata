@@ -10,7 +10,7 @@ import strata.compiler as compiler_mod
 import strata.core as core
 import strata.discovery as discovery
 import strata.sources as sources
-from strata.backends.local.storage import LocalSourceConfig
+from strata.infra.backends.local.storage import LocalSourceConfig
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +89,9 @@ class TestOutputDirectory:
         assert table_dir.exists()
         assert table_dir.name == "user_transactions"
 
-    def test_creates_nested_directory(self, tmp_path, compiled_query, disc_object):
+    def test_creates_nested_directory(
+        self, tmp_path, compiled_query, disc_object
+    ):
         """Should create parent directories if they don't exist."""
         output_dir = tmp_path / "nested" / "compiled"
         table_dir = compile_output.write_compile_output(
@@ -127,7 +129,9 @@ class TestQuerySql:
         assert "user_transactions" in content
         assert "tables/user_features.py" in content
 
-    def test_query_sql_contains_real_sql(self, tmp_path, compiled_query, disc_object):
+    def test_query_sql_contains_real_sql(
+        self, tmp_path, compiled_query, disc_object
+    ):
         """query.sql should contain actual compiled SQL, not placeholders."""
         table_dir = compile_output.write_compile_output(
             compiled=compiled_query,
@@ -216,7 +220,9 @@ class TestLineageJson:
 
 
 class TestBuildContextJson:
-    def test_writes_build_context_json(self, tmp_path, compiled_query, disc_object):
+    def test_writes_build_context_json(
+        self, tmp_path, compiled_query, disc_object
+    ):
         """Should write build_context.json with all metadata fields."""
         table_dir = compile_output.write_compile_output(
             compiled=compiled_query,

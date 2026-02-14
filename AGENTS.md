@@ -17,7 +17,7 @@ Strata is a DuckDB-first Python feature store providing training-serving consist
 import strata.core as core
 import strata.sources as sources
 import strata.errors as errors
-import strata.backends.base as base
+import strata.infra.backends.base as base
 import pydantic as pdt
 import pyarrow as pa
 
@@ -59,26 +59,29 @@ src/strata/
 ├── output.py            # Rich output helpers (Pulumi-style diff rendering)
 ├── quality.py           # BaseConstraintChecker ABC, PyArrowConstraintChecker, validate_table()
 ├── freshness.py         # check_freshness(), TableFreshness, FreshnessResult
-└── backends/
-    ├── __init__.py      # Backend exports
-    ├── base.py          # BaseBackend ABC (single abstraction per deployment target)
-    ├── factory.py       # BackendKind discriminated union
-    ├── duckdb/
-    │   ├── backend.py   # DuckDBBackend: delegates I/O to format
-    │   ├── source.py    # DuckDB source config
-    │   ├── storage.py   # DuckDB storage implementation
-    │   └── registry.py  # DuckDB registry (unused, SQLite is primary)
-    ├── sqlite/
-    │   ├── registry.py  # SQLiteRegistry: objects, changelog, meta, quality_results, builds tables
-    │   └── source.py    # SQLite source config
-    └── local/
-        └── storage.py   # Local filesystem storage, LocalSourceConfig
+└── infra/
+    ├── __init__.py      # Exports BackendKind, RegistryKind, OnlineStoreKind
+    ├── factory.py       # Consolidated: all three Kind discriminated unions
+    ├── backends/
+    │   ├── __init__.py
+    │   ├── base.py      # BaseBackend, BaseRegistry, BaseSourceConfig
+    │   ├── duckdb/
+    │   │   ├── backend.py   # DuckDBBackend: delegates I/O to format
+    │   │   └── storage.py   # DuckDB storage implementation
+    │   ├── sqlite/
+    │   │   └── registry.py  # SQLiteRegistry: objects, changelog, meta, quality_results, builds tables
+    │   └── local/
+    │       └── storage.py   # Local filesystem storage, LocalSourceConfig
+    └── serving/
+        ├── __init__.py  # Exports BaseOnlineStore
+        ├── base.py      # BaseOnlineStore ABC
+        └── sqlite.py    # SqliteOnlineStore
 ```
 
 **Key architectural decisions:**
-- `backends/` (not `plugins/`) — renamed in Phase 4
+- `infra/` is the umbrella package for all infrastructure: backends (offline), serving (online), and factory
+- `infra/factory.py` consolidates all Kind unions: `BackendKind`, `RegistryKind`, `OnlineStoreKind`
 - `BaseBackend` replaces the earlier `BaseStorage` + `BaseCompute` split
-- `BackendKind` replaces `StorageKind` + `ComputeKind` in factory.py
 - Formats live at root level (`formats.py`), shared across all backends
 - DuckDBBackend delegates I/O to `format.read()`/`format.write()`
 
@@ -87,7 +90,7 @@ src/strata/
 Single `BaseBackend` abstraction per deployment target (not separate storage + compute):
 
 ```python
-import strata.backends.base as base
+import strata.infra.backends.base as base
 
 class BaseBackend(abc.ABC):
     def connect(self) -> ibis.BaseBackend: ...

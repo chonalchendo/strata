@@ -6,9 +6,9 @@ import pyarrow as pa
 import pytest
 
 import strata.core as core
-import strata.serving.sqlite as sqlite_store
+import strata.infra.serving.sqlite as sqlite_store
 import strata.sources as sources
-from strata.backends.local import LocalSourceConfig
+from strata.infra.backends.local import LocalSourceConfig
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,9 @@ class TestSqliteOnlineStoreWriteRead:
         result = store.read_features("user_features", {"user_id": "abc"})
 
         assert "_feature_timestamp" in result.column_names
-        assert result.to_pydict()["_feature_timestamp"] == ["2024-06-15T12:00:00Z"]
+        assert result.to_pydict()["_feature_timestamp"] == [
+            "2024-06-15T12:00:00Z"
+        ]
 
     def test_multiple_tables_isolation(self, store):
         """Features from different tables are isolated."""
@@ -123,16 +125,18 @@ class TestSqliteOnlineStoreWriteRead:
 class TestSqliteOnlineStoreWriteBatch:
     def test_write_batch(self, store):
         """Write a batch of entities and read each back."""
-        data = pa.table({
-            "user_id": ["u1", "u2", "u3"],
-            "spend_90d": [100.0, 200.0, 300.0],
-            "txn_count": [5, 10, 15],
-            "event_ts": [
-                "2024-01-01T00:00:00Z",
-                "2024-01-01T00:00:00Z",
-                "2024-01-01T00:00:00Z",
-            ],
-        })
+        data = pa.table(
+            {
+                "user_id": ["u1", "u2", "u3"],
+                "spend_90d": [100.0, 200.0, 300.0],
+                "txn_count": [5, 10, 15],
+                "event_ts": [
+                    "2024-01-01T00:00:00Z",
+                    "2024-01-01T00:00:00Z",
+                    "2024-01-01T00:00:00Z",
+                ],
+            }
+        )
         store.write_batch(
             table_name="user_features",
             data=data,
@@ -140,22 +144,28 @@ class TestSqliteOnlineStoreWriteBatch:
             timestamp_column="event_ts",
         )
 
-        for uid, expected_spend in [("u1", 100.0), ("u2", 200.0), ("u3", 300.0)]:
+        for uid, expected_spend in [
+            ("u1", 100.0),
+            ("u2", 200.0),
+            ("u3", 300.0),
+        ]:
             result = store.read_features("user_features", {"user_id": uid})
             assert result.num_rows == 1
             assert result.to_pydict()["spend_90d"] == [expected_spend]
 
     def test_write_batch_latest_per_entity(self, store):
         """When batch has multiple rows per entity, only the latest is stored."""
-        data = pa.table({
-            "user_id": ["u1", "u1", "u1"],
-            "spend_90d": [100.0, 200.0, 300.0],
-            "event_ts": [
-                "2024-01-01T00:00:00Z",
-                "2024-03-01T00:00:00Z",  # latest
-                "2024-02-01T00:00:00Z",
-            ],
-        })
+        data = pa.table(
+            {
+                "user_id": ["u1", "u1", "u1"],
+                "spend_90d": [100.0, 200.0, 300.0],
+                "event_ts": [
+                    "2024-01-01T00:00:00Z",
+                    "2024-03-01T00:00:00Z",  # latest
+                    "2024-02-01T00:00:00Z",
+                ],
+            }
+        )
         store.write_batch(
             table_name="user_features",
             data=data,
@@ -171,11 +181,13 @@ class TestSqliteOnlineStoreWriteBatch:
 
     def test_write_batch_empty_table(self, store):
         """Writing an empty batch is a no-op."""
-        data = pa.table({
-            "user_id": pa.array([], type=pa.string()),
-            "spend_90d": pa.array([], type=pa.float64()),
-            "event_ts": pa.array([], type=pa.string()),
-        })
+        data = pa.table(
+            {
+                "user_id": pa.array([], type=pa.string()),
+                "spend_90d": pa.array([], type=pa.float64()),
+                "event_ts": pa.array([], type=pa.string()),
+            }
+        )
         store.write_batch(
             table_name="user_features",
             data=data,
@@ -187,12 +199,14 @@ class TestSqliteOnlineStoreWriteBatch:
 
     def test_write_batch_composite_entity_key(self, store):
         """Batch write with composite (multi-column) entity key."""
-        data = pa.table({
-            "user_id": ["u1", "u1"],
-            "device_id": ["d1", "d2"],
-            "score": [0.8, 0.9],
-            "event_ts": ["2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"],
-        })
+        data = pa.table(
+            {
+                "user_id": ["u1", "u1"],
+                "device_id": ["d1", "d2"],
+                "score": [0.8, 0.9],
+                "event_ts": ["2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"],
+            }
+        )
         store.write_batch(
             table_name="device_features",
             data=data,
@@ -200,8 +214,12 @@ class TestSqliteOnlineStoreWriteBatch:
             timestamp_column="event_ts",
         )
 
-        r1 = store.read_features("device_features", {"user_id": "u1", "device_id": "d1"})
-        r2 = store.read_features("device_features", {"user_id": "u1", "device_id": "d2"})
+        r1 = store.read_features(
+            "device_features", {"user_id": "u1", "device_id": "d1"}
+        )
+        r2 = store.read_features(
+            "device_features", {"user_id": "u1", "device_id": "d2"}
+        )
 
         assert r1.num_rows == 1
         assert r1.to_pydict()["score"] == [0.8]
@@ -292,7 +310,11 @@ class TestEnvironmentSettingsOnlineStore:
 
         env = settings.EnvironmentSettings(
             registry={"kind": "sqlite", "path": ":memory:"},
-            backend={"kind": "duckdb", "path": "/tmp/test_data", "catalog": "test"},
+            backend={
+                "kind": "duckdb",
+                "path": "/tmp/test_data",
+                "catalog": "test",
+            },
         )
         assert env.online_store is None
 
@@ -303,7 +325,11 @@ class TestEnvironmentSettingsOnlineStore:
         db_path = str(tmp_path / "online.db")
         env = settings.EnvironmentSettings(
             registry={"kind": "sqlite", "path": ":memory:"},
-            backend={"kind": "duckdb", "path": "/tmp/test_data", "catalog": "test"},
+            backend={
+                "kind": "duckdb",
+                "path": "/tmp/test_data",
+                "catalog": "test",
+            },
             online_store={"kind": "sqlite", "path": db_path},
         )
         assert env.online_store is not None

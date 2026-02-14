@@ -93,7 +93,11 @@ class TestBasicAsofJoin:
         # Convert to dict for easy assertion
         df = result.to_pandas().sort_values("event_ts").reset_index(drop=True)
         assert list(df.columns) == ["user_id", "event_ts", "spend"]
-        assert list(df["spend"]) == [100, 300, 200]  # A@Jan10->100, B@Jan15->300, A@Jan20->200
+        assert list(df["spend"]) == [
+            100,
+            300,
+            200,
+        ]  # A@Jan10->100, B@Jan15->300, A@Jan20->200
 
     def test_no_future_leakage(self):
         """Features after the spine timestamp must not be joined."""
@@ -132,7 +136,10 @@ class TestBasicAsofJoin:
 
         # User A should have spend=100, User C should have null
         assert df.loc[df["user_id"] == "A", "spend"].iloc[0] == 100
-        assert pa.compute.is_null(result.column("spend")).to_pylist().count(True) == 1
+        assert (
+            pa.compute.is_null(result.column("spend")).to_pylist().count(True)
+            == 1
+        )
 
 
 class TestMultipleFeatureTables:
@@ -190,8 +197,12 @@ class TestMultipleFeatureTables:
             feature_cols={"metric_b": [99]},
             timestamp_column="ts_b",
         )
-        ft1 = _make_feature_table_data("ft1", feat1, ["metric_a"], timestamp_column="ts_a")
-        ft2 = _make_feature_table_data("ft2", feat2, ["metric_b"], timestamp_column="ts_b")
+        ft1 = _make_feature_table_data(
+            "ft1", feat1, ["metric_a"], timestamp_column="ts_a"
+        )
+        ft2 = _make_feature_table_data(
+            "ft2", feat2, ["metric_b"], timestamp_column="ts_b"
+        )
 
         result = pit.pit_join(spine, [ft1, ft2])
         df = result.to_pandas()
@@ -409,7 +420,11 @@ class TestEdgeCases:
         features = _make_features(
             user_ids=["A"],
             timestamps=[_ts(2024, 1, 5)],
-            feature_cols={"spend": [100], "txn_count": [5], "avg_amount": [20.0]},
+            feature_cols={
+                "spend": [100],
+                "txn_count": [5],
+                "avg_amount": [20.0],
+            },
         )
         ft = _make_feature_table_data(
             "user_spend",
@@ -441,9 +456,7 @@ class TestEdgeCases:
         )
         ft = _make_feature_table_data("user_spend", features, ["spend"])
 
-        result = pit.pit_join(
-            spine, [ft], spine_timestamp="observation_time"
-        )
+        result = pit.pit_join(spine, [ft], spine_timestamp="observation_time")
         df = result.to_pandas()
 
         assert df["spend"].iloc[0] == 100

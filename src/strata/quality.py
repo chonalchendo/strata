@@ -373,7 +373,9 @@ def validate_table(
         custom_validators = {}
 
     # Resolve sample_pct: explicit param > table.sample_pct > None
-    effective_sample_pct = sample_pct if sample_pct is not None else table.sample_pct
+    effective_sample_pct = (
+        sample_pct if sample_pct is not None else table.sample_pct
+    )
 
     # Apply sampling if requested
     if effective_sample_pct is not None and 1 <= effective_sample_pct < 100:
@@ -403,30 +405,44 @@ def validate_table(
 
         if field.ge is not None:
             constraints.append(
-                checker.check_ge(column, field.ge, field_name, severity, rows_checked)
+                checker.check_ge(
+                    column, field.ge, field_name, severity, rows_checked
+                )
             )
 
         if field.le is not None:
             constraints.append(
-                checker.check_le(column, field.le, field_name, severity, rows_checked)
+                checker.check_le(
+                    column, field.le, field_name, severity, rows_checked
+                )
             )
 
         if field.not_null:
             constraints.append(
-                checker.check_not_null(column, field_name, severity, rows_checked)
+                checker.check_not_null(
+                    column, field_name, severity, rows_checked
+                )
             )
 
         if field.max_null_pct is not None:
             constraints.append(
                 checker.check_max_null_pct(
-                    column, field.max_null_pct, field_name, severity, rows_checked
+                    column,
+                    field.max_null_pct,
+                    field_name,
+                    severity,
+                    rows_checked,
                 )
             )
 
         if field.allowed_values is not None:
             constraints.append(
                 checker.check_allowed_values(
-                    column, field.allowed_values, field_name, severity, rows_checked
+                    column,
+                    field.allowed_values,
+                    field_name,
+                    severity,
+                    rows_checked,
                 )
             )
 
@@ -440,7 +456,10 @@ def validate_table(
         if field_name in custom_validators:
             constraints.append(
                 _run_custom_validator(
-                    field_name, column, custom_validators[field_name], rows_checked
+                    field_name,
+                    column,
+                    custom_validators[field_name],
+                    rows_checked,
                 )
             )
 
@@ -466,7 +485,10 @@ def validate_table(
     # Handle custom validators for fields not in the FeatureTable definition
     field_names_processed = {fr.field_name for fr in field_results}
     for field_name, validator_fn in custom_validators.items():
-        if field_name not in field_names_processed and field_name in data.column_names:
+        if (
+            field_name not in field_names_processed
+            and field_name in data.column_names
+        ):
             cr = _run_custom_validator(
                 field_name, data.column(field_name), validator_fn, rows_checked
             )

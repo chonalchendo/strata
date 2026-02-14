@@ -59,7 +59,7 @@ def _make_entity() -> core.Entity:
 
 def _make_source(name: str = "events") -> sources.BatchSource:
     """Create a test batch source."""
-    from strata.backends.local import LocalSourceConfig
+    from strata.infra.backends.local import LocalSourceConfig
 
     return sources.BatchSource(
         name=name,
@@ -83,8 +83,12 @@ def _make_feature_table(
         timestamp_field=timestamp_field,
     )
     # Manually register features
-    spend = core.Feature(name="spend", table_name=name, field=core.Field(dtype="float64"))
-    txn_count = core.Feature(name="txn_count", table_name=name, field=core.Field(dtype="int64"))
+    spend = core.Feature(
+        name="spend", table_name=name, field=core.Field(dtype="float64")
+    )
+    txn_count = core.Feature(
+        name="txn_count", table_name=name, field=core.Field(dtype="int64")
+    )
     ft._features["spend"] = spend
     ft._features["txn_count"] = txn_count
     return ft
@@ -108,7 +112,9 @@ def _make_project_with_data(
     proj = project.StrataProject(strata_settings)
 
     for table_name, data in table_data.items():
-        proj._backend.write_table(table_name=table_name, data=data, mode="append")
+        proj._backend.write_table(
+            table_name=table_name, data=data, mode="append"
+        )
 
     return proj
 
@@ -192,14 +198,21 @@ class TestReadFeaturesBasic:
         ft = _make_feature_table("user_features", entity)
 
         # Write feature data to backend
-        data = pa.table({
-            "user_id": ["A", "A", "B"],
-            "event_ts": pa.array([
-                _ts(2024, 1, 5), _ts(2024, 1, 15), _ts(2024, 1, 10),
-            ], type=pa.timestamp("us")),
-            "spend": [100.0, 200.0, 300.0],
-            "txn_count": [1, 2, 3],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A", "A", "B"],
+                "event_ts": pa.array(
+                    [
+                        _ts(2024, 1, 5),
+                        _ts(2024, 1, 15),
+                        _ts(2024, 1, 10),
+                    ],
+                    type=pa.timestamp("us"),
+                ),
+                "spend": [100.0, 200.0, 300.0],
+                "txn_count": [1, 2, 3],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -210,7 +223,9 @@ class TestReadFeaturesBasic:
         )
 
         bound_ds = _make_bound_dataset(
-            proj, dataset, {"user_features": ft},
+            proj,
+            dataset,
+            {"user_features": ft},
         )
 
         result = bound_ds.read_features(
@@ -229,12 +244,16 @@ class TestReadFeaturesBasic:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -255,12 +274,16 @@ class TestReadFeaturesBasic:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -283,16 +306,21 @@ class TestReadFeaturesBasic:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A", "A", "A"],
-            "event_ts": pa.array([
-                _ts(2024, 1, 5),   # Inside range
-                _ts(2024, 2, 15),  # Outside range
-                _ts(2024, 1, 20),  # Inside range
-            ], type=pa.timestamp("us")),
-            "spend": [100.0, 200.0, 300.0],
-            "txn_count": [1, 2, 3],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A", "A", "A"],
+                "event_ts": pa.array(
+                    [
+                        _ts(2024, 1, 5),  # Inside range
+                        _ts(2024, 2, 15),  # Outside range
+                        _ts(2024, 1, 20),  # Inside range
+                    ],
+                    type=pa.timestamp("us"),
+                ),
+                "spend": [100.0, 200.0, 300.0],
+                "txn_count": [1, 2, 3],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -329,7 +357,11 @@ class TestReadFeaturesPITCorrectness:
             entity=entity,
             timestamp_field="event_ts",
         )
-        spend_feat = core.Feature(name="spend", table_name="user_spend", field=core.Field(dtype="float64"))
+        spend_feat = core.Feature(
+            name="spend",
+            table_name="user_spend",
+            field=core.Field(dtype="float64"),
+        )
         ft_spend._features["spend"] = spend_feat
 
         # Second feature table: user_clicks
@@ -339,25 +371,40 @@ class TestReadFeaturesPITCorrectness:
             entity=entity,
             timestamp_field="event_ts",
         )
-        clicks_feat = core.Feature(name="clicks", table_name="user_clicks", field=core.Field(dtype="int64"))
+        clicks_feat = core.Feature(
+            name="clicks",
+            table_name="user_clicks",
+            field=core.Field(dtype="int64"),
+        )
         ft_clicks._features["clicks"] = clicks_feat
 
         # Write data: spend has data at Jan 5, clicks at Jan 8
-        spend_data = pa.table({
-            "user_id": ["A", "B"],
-            "event_ts": pa.array([_ts(2024, 1, 5), _ts(2024, 1, 5)], type=pa.timestamp("us")),
-            "spend": [100.0, 300.0],
-        })
-        clicks_data = pa.table({
-            "user_id": ["A", "B"],
-            "event_ts": pa.array([_ts(2024, 1, 8), _ts(2024, 1, 12)], type=pa.timestamp("us")),
-            "clicks": [10, 20],
-        })
+        spend_data = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 5), _ts(2024, 1, 5)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0, 300.0],
+            }
+        )
+        clicks_data = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 8), _ts(2024, 1, 12)], type=pa.timestamp("us")
+                ),
+                "clicks": [10, 20],
+            }
+        )
 
-        proj = _make_project_with_data(tmp_path, {
-            "user_spend": spend_data,
-            "user_clicks": clicks_data,
-        })
+        proj = _make_project_with_data(
+            tmp_path,
+            {
+                "user_spend": spend_data,
+                "user_clicks": clicks_data,
+            },
+        )
 
         dataset = core.Dataset(
             name="test_ds",
@@ -366,7 +413,8 @@ class TestReadFeaturesPITCorrectness:
         )
 
         bound_ds = _make_bound_dataset(
-            proj, dataset,
+            proj,
+            dataset,
             {"user_spend": ft_spend, "user_clicks": ft_clicks},
         )
 
@@ -388,7 +436,11 @@ class TestReadFeaturesPITCorrectness:
             entity=entity,
             timestamp_field="event_ts",
         )
-        primary_feat = core.Feature(name="value", table_name="primary", field=core.Field(dtype="float64"))
+        primary_feat = core.Feature(
+            name="value",
+            table_name="primary",
+            field=core.Field(dtype="float64"),
+        )
         ft_primary._features["value"] = primary_feat
 
         # Feature table has data at Jan 5 (before) and Jan 15 (after spine)
@@ -398,24 +450,39 @@ class TestReadFeaturesPITCorrectness:
             entity=entity,
             timestamp_field="event_ts",
         )
-        feat = core.Feature(name="score", table_name="features", field=core.Field(dtype="float64"))
+        feat = core.Feature(
+            name="score",
+            table_name="features",
+            field=core.Field(dtype="float64"),
+        )
         ft_features._features["score"] = feat
 
-        primary_data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "value": [1.0],
-        })
-        features_data = pa.table({
-            "user_id": ["A", "A"],
-            "event_ts": pa.array([_ts(2024, 1, 5), _ts(2024, 1, 15)], type=pa.timestamp("us")),
-            "score": [50.0, 999.0],
-        })
+        primary_data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "value": [1.0],
+            }
+        )
+        features_data = pa.table(
+            {
+                "user_id": ["A", "A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 5), _ts(2024, 1, 15)], type=pa.timestamp("us")
+                ),
+                "score": [50.0, 999.0],
+            }
+        )
 
-        proj = _make_project_with_data(tmp_path, {
-            "primary": primary_data,
-            "features": features_data,
-        })
+        proj = _make_project_with_data(
+            tmp_path,
+            {
+                "primary": primary_data,
+                "features": features_data,
+            },
+        )
 
         dataset = core.Dataset(
             name="test_ds",
@@ -424,7 +491,8 @@ class TestReadFeaturesPITCorrectness:
         )
 
         bound_ds = _make_bound_dataset(
-            proj, dataset,
+            proj,
+            dataset,
             {"primary": ft_primary, "features": ft_features},
         )
 
@@ -448,14 +516,20 @@ class TestReadFeaturesExternalSpine:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A", "B"],
-            "event_ts": pa.array([
-                _ts(2024, 1, 5), _ts(2024, 1, 10),
-            ], type=pa.timestamp("us")),
-            "spend": [100.0, 300.0],
-            "txn_count": [1, 3],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "event_ts": pa.array(
+                    [
+                        _ts(2024, 1, 5),
+                        _ts(2024, 1, 10),
+                    ],
+                    type=pa.timestamp("us"),
+                ),
+                "spend": [100.0, 300.0],
+                "txn_count": [1, 3],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -468,12 +542,18 @@ class TestReadFeaturesExternalSpine:
         bound_ds = _make_bound_dataset(proj, dataset, {"user_features": ft})
 
         # Provide an external spine with custom timestamps
-        external_spine = pa.table({
-            "user_id": ["A", "B"],
-            "event_ts": pa.array([
-                _ts(2024, 1, 8), _ts(2024, 1, 12),
-            ], type=pa.timestamp("us")),
-        })
+        external_spine = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "event_ts": pa.array(
+                    [
+                        _ts(2024, 1, 8),
+                        _ts(2024, 1, 12),
+                    ],
+                    type=pa.timestamp("us"),
+                ),
+            }
+        )
 
         result = bound_ds.read_features(
             start="2024-01-01",
@@ -513,17 +593,27 @@ class TestReadFeaturesTTL:
             entity=entity,
             timestamp_field="event_ts",
         )
-        spend_feat = core.Feature(name="spend", table_name="user_features", field=core.Field(dtype="float64"))
+        spend_feat = core.Feature(
+            name="spend",
+            table_name="user_features",
+            field=core.Field(dtype="float64"),
+        )
         ft._features["spend"] = spend_feat
 
         # Feature data from Jan 5 - spine at April 10 (>30 days)
-        feature_data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 5)], type=pa.timestamp("us")),
-            "spend": [100.0],
-        })
+        feature_data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 5)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+            }
+        )
 
-        proj = _make_project_with_data(tmp_path, {"user_features": feature_data})
+        proj = _make_project_with_data(
+            tmp_path, {"user_features": feature_data}
+        )
 
         dataset = core.Dataset(
             name="test_ds",
@@ -534,10 +624,14 @@ class TestReadFeaturesTTL:
         bound_ds = _make_bound_dataset(proj, dataset, {"user_features": ft})
 
         # External spine with a timestamp far beyond TTL
-        external_spine = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 4, 10)], type=pa.timestamp("us")),
-        })
+        external_spine = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 4, 10)], type=pa.timestamp("us")
+                ),
+            }
+        )
 
         result = bound_ds.read_features(
             start="2024-01-01",
@@ -563,12 +657,16 @@ class TestReadFeaturesErrors:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -580,7 +678,9 @@ class TestReadFeaturesErrors:
 
         bound_ds = _make_bound_dataset(proj, dataset, {"user_features": ft})
 
-        with pytest.raises(errors.StrataError, match="start .* must be before end"):
+        with pytest.raises(
+            errors.StrataError, match="start .* must be before end"
+        ):
             bound_ds.read_features(start="2024-02-01", end="2024-01-01")
 
     def test_no_built_data_raises(self, tmp_path: Path) -> None:
@@ -618,12 +718,16 @@ class TestReadFeaturesNaming:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -644,12 +748,16 @@ class TestReadFeaturesNaming:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -670,12 +778,16 @@ class TestReadFeaturesNaming:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -708,16 +820,24 @@ class TestDatasetLabel:
         ft = _make_feature_table("user_features", entity)
 
         # Add a label feature
-        target = core.Feature(name="is_fraud", table_name="user_features", field=core.Field(dtype="bool"))
+        target = core.Feature(
+            name="is_fraud",
+            table_name="user_features",
+            field=core.Field(dtype="bool"),
+        )
         ft._features["is_fraud"] = target
 
-        data = pa.table({
-            "user_id": ["A", "B"],
-            "event_ts": pa.array([_ts(2024, 1, 5), _ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0, 200.0],
-            "txn_count": [1, 2],
-            "is_fraud": [True, False],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 5), _ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0, 200.0],
+                "txn_count": [1, 2],
+                "is_fraud": [True, False],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -740,12 +860,16 @@ class TestDatasetLabel:
         entity = _make_entity()
         ft = _make_feature_table("user_features", entity)
 
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
 
         proj = _make_project_with_data(tmp_path, {"user_features": data})
 
@@ -805,12 +929,16 @@ class TestBoundObjects:
         assert bound_ft.name == "user_features"
 
         # Write data via bound feature table
-        data = pa.table({
-            "user_id": ["A"],
-            "event_ts": pa.array([_ts(2024, 1, 10)], type=pa.timestamp("us")),
-            "spend": [100.0],
-            "txn_count": [5],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A"],
+                "event_ts": pa.array(
+                    [_ts(2024, 1, 10)], type=pa.timestamp("us")
+                ),
+                "spend": [100.0],
+                "txn_count": [5],
+            }
+        )
         bound_ft.write(data)
 
         # Read back
@@ -833,10 +961,12 @@ class TestWriteTable:
         strata_settings = settings.load_strata_settings(path=yaml_path)
         proj = project.StrataProject(strata_settings)
 
-        data = pa.table({
-            "user_id": ["A", "B"],
-            "value": [1.0, 2.0],
-        })
+        data = pa.table(
+            {
+                "user_id": ["A", "B"],
+                "value": [1.0, 2.0],
+            }
+        )
 
         proj.write_table("test_table", data)
 

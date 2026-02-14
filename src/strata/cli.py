@@ -27,7 +27,7 @@ import strata.diff as diff
 import strata.discovery as discovery
 import strata.errors as errors
 import strata.output as output
-import strata.backends as backends
+import strata.infra as infra
 import strata.registry as reg_types
 import strata.settings as settings
 import strata.validation as validation
@@ -61,7 +61,9 @@ def _configure_verbose(verbose: bool) -> None:
         logger.enable("strata")
 
 
-def _get_registry(strata_settings: settings.StrataSettings) -> backends.RegistryKind:
+def _get_registry(
+    strata_settings: settings.StrataSettings,
+) -> infra.RegistryKind:
     """Get registry backend for current environment."""
     return strata_settings.active_environment.registry
 
@@ -155,7 +157,9 @@ def preview(
     ] = None,
     show_unchanged: Annotated[
         bool,
-        cyclopts.Parameter(name="--show-unchanged", help="Show unchanged resources"),
+        cyclopts.Parameter(
+            name="--show-unchanged", help="Show unchanged resources"
+        ),
     ] = False,
 ):
     """Preview changes without applying.
@@ -195,11 +199,15 @@ def validate(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
-        cyclopts.Parameter(name="--env", help="Environment to validate against"),
+        cyclopts.Parameter(
+            name="--env", help="Environment to validate against"
+        ),
     ] = None,
 ):
     """Validate project configuration and feature definitions.
@@ -215,7 +223,9 @@ def validate(
         strata_settings = settings.load_strata_settings(env=env_name)
 
         if not json_output:
-            console.print(f"[bold]Validating project: {strata_settings.name}[/bold]")
+            console.print(
+                f"[bold]Validating project: {strata_settings.name}[/bold]"
+            )
             console.print()
 
             # Validate configuration
@@ -223,7 +233,9 @@ def validate(
             console.print(f"  Project: {strata_settings.name}")
             console.print(f"  Environment: {strata_settings.active_env}")
             if strata_settings.schedules:
-                console.print(f"  Schedules: {', '.join(strata_settings.schedules)}")
+                console.print(
+                    f"  Schedules: {', '.join(strata_settings.schedules)}"
+                )
             console.print()
 
             with console.status("[bold]Validating definitions...[/bold]"):
@@ -263,13 +275,17 @@ def validate(
         raise SystemExit(1)
 
 
-def _render_issue(issue: validation.ValidationIssue, color: str, label: str) -> None:
+def _render_issue(
+    issue: validation.ValidationIssue, color: str, label: str
+) -> None:
     """Render a validation issue."""
     console.print(f"[{color}]{label}:[/{color}] {issue.message}")
     if issue.source_file:
         console.print(f"  [dim]File: {issue.source_file}[/dim]")
     if issue.object_kind and issue.object_name:
-        console.print(f"  [dim]Object: {issue.object_kind} '{issue.object_name}'[/dim]")
+        console.print(
+            f"  [dim]Object: {issue.object_kind} '{issue.object_name}'[/dim]"
+        )
     if issue.fix_suggestion:
         console.print(f"  [green]Fix: {issue.fix_suggestion}[/green]")
     console.print()
@@ -313,7 +329,9 @@ def up(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -346,11 +364,15 @@ def up(
         t0 = time.perf_counter()
         result = diff.compute_diff(discovered, reg)
         t_diff = time.perf_counter() - t0
-        logger.debug(f"Diff: {t_diff * 1000:.1f}ms ({len(result.changes)} changes)")
+        logger.debug(
+            f"Diff: {t_diff * 1000:.1f}ms ({len(result.changes)} changes)"
+        )
 
         if dry_run:
             # Just preview
-            console.print(f"[bold]Preview for {strata_settings.active_env}:[/bold]")
+            console.print(
+                f"[bold]Preview for {strata_settings.active_env}:[/bold]"
+            )
             console.print()
             output.render_diff(result)
             return
@@ -397,11 +419,15 @@ def up(
                 applied_count += 1
 
             elif change.operation == diff.ChangeOperation.DELETE:
-                reg.delete_object(change.kind, change.name, applied_by=applied_by)
+                reg.delete_object(
+                    change.kind, change.name, applied_by=applied_by
+                )
                 applied_count += 1
 
         t_apply = time.perf_counter() - t0
-        logger.debug(f"Apply: {t_apply * 1000:.1f}ms ({applied_count} changes applied)")
+        logger.debug(
+            f"Apply: {t_apply * 1000:.1f}ms ({applied_count} changes applied)"
+        )
         output.render_apply_complete(result)
 
     except errors.StrataError as e:
@@ -419,7 +445,9 @@ def build(
     ] = None,
     schedule: Annotated[
         str | None,
-        cyclopts.Parameter(name="--schedule", help="Filter tables by schedule tag"),
+        cyclopts.Parameter(
+            name="--schedule", help="Filter tables by schedule tag"
+        ),
     ] = None,
     full_refresh: Annotated[
         bool,
@@ -458,7 +486,9 @@ def build(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -509,13 +539,17 @@ def build(
 
         # Print build context header
         if not json_output:
-            console.print(f"[bold]Building in {strata_settings.active_env}...[/bold]")
+            console.print(
+                f"[bold]Building in {strata_settings.active_env}...[/bold]"
+            )
             if table:
                 console.print(f"  Target: {table}")
             if schedule:
                 console.print(f"  Schedule: {schedule}")
             if full_refresh:
-                console.print("  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)")
+                console.print(
+                    "  Mode: [yellow]full-refresh[/yellow] (drop and rebuild)"
+                )
             if skip_quality:
                 console.print("  Quality: [yellow]skipped[/yellow]")
             if publish_flag:
@@ -568,7 +602,10 @@ def build(
 
         # Write compile artifacts for successfully-built tables
         _write_build_compile_output(
-            strata_settings, discovered, feature_tables, result,
+            strata_settings,
+            discovered,
+            feature_tables,
+            result,
         )
 
         elapsed = time.perf_counter() - t0
@@ -693,8 +730,7 @@ def _render_build_results(
                 if warn_n > 0:
                     warn_s = "s" if warn_n != 1 else ""
                     quality_indicator = (
-                        f" [yellow]({warn_n} "
-                        f"warning{warn_s})[/yellow]"
+                        f" [yellow]({warn_n} warning{warn_s})[/yellow]"
                     )
             console.print(
                 f"[green]\u2713[/green] {name}{rows}{duration}{quality_indicator}"
@@ -719,7 +755,9 @@ def _render_build_results(
 
     total = len(result.table_results)
     summary = ", ".join(parts) if parts else "0 tables"
-    console.print(f"[bold]Build complete:[/bold] {summary} ({total} total, {elapsed:.1f}s)")
+    console.print(
+        f"[bold]Build complete:[/bold] {summary} ({total} total, {elapsed:.1f}s)"
+    )
 
     # Quality summary
     if skip_quality:
@@ -742,15 +780,17 @@ def _render_build_json(
     """Output build results as machine-readable JSON."""
     tables = []
     for table_result in result.table_results:
-        tables.append({
-            "table": table_result.table_name,
-            "status": table_result.status.value,
-            "duration_ms": table_result.duration_ms,
-            "row_count": table_result.row_count,
-            "error": table_result.error,
-            "validation_passed": table_result.validation_passed,
-            "validation_warnings": table_result.validation_warnings,
-        })
+        tables.append(
+            {
+                "table": table_result.table_name,
+                "status": table_result.status.value,
+                "duration_ms": table_result.duration_ms,
+                "row_count": table_result.row_count,
+                "error": table_result.error,
+                "validation_passed": table_result.validation_passed,
+                "validation_warnings": table_result.validation_warnings,
+            }
+        )
 
     output_data = {
         "success": result.is_success,
@@ -775,7 +815,9 @@ def compile(
     ] = None,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -793,7 +835,9 @@ def compile(
 
         _configure_verbose(verbose)
         strata_settings = settings.load_strata_settings(env=env_name)
-        console.print(f"[bold]Compiling for {strata_settings.active_env}...[/bold]")
+        console.print(
+            f"[bold]Compiling for {strata_settings.active_env}...[/bold]"
+        )
         console.print()
 
         # Discover definitions
@@ -807,7 +851,9 @@ def compile(
             source_tables = [d for d in discovered if d.kind == "source_table"]
             for st in source_tables:
                 if st.name == table:
-                    console.print(f"[red]Error:[/red] '{table}' is a SourceTable")
+                    console.print(
+                        f"[red]Error:[/red] '{table}' is a SourceTable"
+                    )
                     console.print()
                     console.print(
                         "[dim]Hint: Only FeatureTable definitions can be compiled. "
@@ -922,13 +968,17 @@ def down(
             # Remove specific object
             existing = reg.get_object(kind, name)
             if existing is None:
-                console.print(f"[yellow]Object not found:[/yellow] {kind} '{name}'")
+                console.print(
+                    f"[yellow]Object not found:[/yellow] {kind} '{name}'"
+                )
                 return
 
             console.print(f"[bold]Removing {kind} '{name}'[/bold]")
 
             if not yes:
-                confirm = console.input("[yellow]Are you sure? (y/N):[/yellow] ")
+                confirm = console.input(
+                    "[yellow]Are you sure? (y/N):[/yellow] "
+                )
                 if confirm.lower() != "y":
                     console.print("[dim]Cancelled[/dim]")
                     return
@@ -1094,7 +1144,9 @@ def quality(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -1148,7 +1200,7 @@ def quality(
 
 def _load_quality_from_registry(
     table_name: str,
-    reg: backends.RegistryKind,
+    reg: infra.RegistryKind,
 ) -> "quality_mod.TableValidationResult | None":
     """Load latest quality result from registry, returning None if absent."""
     import strata.quality as quality_mod
@@ -1156,7 +1208,9 @@ def _load_quality_from_registry(
     records = reg.get_quality_results(table_name, limit=1)
 
     if not records:
-        console.print(f"[yellow]No quality results found for '{table_name}'[/yellow]")
+        console.print(
+            f"[yellow]No quality results found for '{table_name}'[/yellow]"
+        )
         console.print()
         console.print(
             "[dim]Hint: Run [bold]strata build[/bold] to generate quality results, "
@@ -1203,7 +1257,7 @@ def _load_quality_from_registry(
 def _run_live_quality(
     table_name: str,
     strata_settings: settings.StrataSettings,
-    reg: backends.RegistryKind,
+    reg: infra.RegistryKind,
 ) -> "quality_mod.TableValidationResult | None":
     """Run live validation against current built data."""
     from dataclasses import asdict
@@ -1227,7 +1281,9 @@ def _run_live_quality(
         console.print()
         available = [d.obj.name for d in feature_tables]
         if available:
-            console.print(f"[dim]Available tables: {', '.join(available)}[/dim]")
+            console.print(
+                f"[dim]Available tables: {', '.join(available)}[/dim]"
+            )
         raise SystemExit(1)
 
     # Read data from backend
@@ -1270,13 +1326,9 @@ def _render_quality_results(
 
     # Header
     status_str = (
-        "[green]PASSED[/green]"
-        if result.passed
-        else "[red]FAILED[/red]"
+        "[green]PASSED[/green]" if result.passed else "[red]FAILED[/red]"
     )
-    console.print(
-        f"[bold]Quality: {result.table_name}[/bold]  {status_str}"
-    )
+    console.print(f"[bold]Quality: {result.table_name}[/bold]  {status_str}")
     console.print(f"[dim]Rows checked: {result.rows_checked}[/dim]")
     console.print()
 
@@ -1385,7 +1437,9 @@ def freshness(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -1416,7 +1470,9 @@ def freshness(
 
         # Discover feature tables
         discovered = _discover(strata_settings, quiet=json_output)
-        feature_tables = [d.obj for d in discovered if d.kind == "feature_table"]
+        feature_tables = [
+            d.obj for d in discovered if d.kind == "feature_table"
+        ]
 
         if not feature_tables:
             if not json_output:
@@ -1488,10 +1544,16 @@ def _render_freshness_results(
 
     for tf in result.tables:
         # Format last build
-        last_build = _format_staleness(tf.build_staleness) if tf.build_staleness else "never"
+        last_build = (
+            _format_staleness(tf.build_staleness)
+            if tf.build_staleness
+            else "never"
+        )
 
         # Format data freshness
-        data_freshness = _format_staleness(tf.data_staleness) if tf.data_staleness else "-"
+        data_freshness = (
+            _format_staleness(tf.data_staleness) if tf.data_staleness else "-"
+        )
 
         # Format SLA
         if tf.max_staleness is not None:
@@ -1556,11 +1618,21 @@ def _render_freshness_json(
         "tables": [
             {
                 "table": tf.table_name,
-                "last_build_at": tf.last_build_at.isoformat() if tf.last_build_at else None,
-                "data_timestamp_max": tf.data_timestamp_max.isoformat() if tf.data_timestamp_max else None,
-                "build_staleness_seconds": tf.build_staleness.total_seconds() if tf.build_staleness else None,
-                "data_staleness_seconds": tf.data_staleness.total_seconds() if tf.data_staleness else None,
-                "max_staleness_seconds": tf.max_staleness.total_seconds() if tf.max_staleness else None,
+                "last_build_at": tf.last_build_at.isoformat()
+                if tf.last_build_at
+                else None,
+                "data_timestamp_max": tf.data_timestamp_max.isoformat()
+                if tf.data_timestamp_max
+                else None,
+                "build_staleness_seconds": tf.build_staleness.total_seconds()
+                if tf.build_staleness
+                else None,
+                "data_staleness_seconds": tf.data_staleness.total_seconds()
+                if tf.data_staleness
+                else None,
+                "max_staleness_seconds": tf.max_staleness.total_seconds()
+                if tf.max_staleness
+                else None,
                 "status": tf.status,
                 "severity": tf.severity,
                 "row_count": tf.row_count,
@@ -1587,7 +1659,9 @@ def publish(
     ] = False,
     verbose: Annotated[
         bool,
-        cyclopts.Parameter(name=["-v", "--verbose"], help="Enable debug logging"),
+        cyclopts.Parameter(
+            name=["-v", "--verbose"], help="Enable debug logging"
+        ),
     ] = False,
     env_name: Annotated[
         str | None,
@@ -1647,10 +1721,8 @@ def _publish_tables(
         target_table: Specific table to publish (None = all online=True).
         json_output: Whether to output JSON instead of Rich.
     """
-    import strata.serving as serving
-
     env_cfg = strata_settings.active_environment
-    online_store: serving.OnlineStoreKind | None = env_cfg.online_store
+    online_store: infra.OnlineStoreKind | None = env_cfg.online_store
 
     if online_store is None:
         raise errors.StrataError(
@@ -1687,9 +1759,13 @@ def _publish_tables(
 
     if not tables_to_publish:
         if json_output:
-            console.print(json_lib.dumps({"published": 0, "tables": []}, indent=2))
+            console.print(
+                json_lib.dumps({"published": 0, "tables": []}, indent=2)
+            )
         else:
-            console.print("[dim]No online tables found. Set online=True on FeatureTable to enable publishing.[/dim]")
+            console.print(
+                "[dim]No online tables found. Set online=True on FeatureTable to enable publishing.[/dim]"
+            )
         return
 
     if not json_output:
@@ -1705,15 +1781,19 @@ def _publish_tables(
         if not backend.table_exists(ft.name):
             if not json_output:
                 console.print(
-                    "  [yellow]![/yellow] {} [dim](no built data, skipped)[/dim]".format(ft.name)
+                    "  [yellow]![/yellow] {} [dim](no built data, skipped)[/dim]".format(
+                        ft.name
+                    )
                 )
-            results.append({
-                "table": ft.name,
-                "status": "skipped",
-                "reason": "no built data",
-                "entities": 0,
-                "duration_ms": 0,
-            })
+            results.append(
+                {
+                    "table": ft.name,
+                    "status": "skipped",
+                    "reason": "no built data",
+                    "entities": 0,
+                    "duration_ms": 0,
+                }
+            )
             continue
 
         data = backend.read_table(ft.name)
@@ -1735,23 +1815,29 @@ def _publish_tables(
             import pyarrow.compute as pc
 
             if len(entity_columns) == 1:
-                entity_count = pc.count_distinct(data.column(entity_columns[0])).as_py()
+                entity_count = pc.count_distinct(
+                    data.column(entity_columns[0])
+                ).as_py()
             else:
                 entity_count = data.num_rows  # Approximate for composite keys
 
         if not json_output:
             console.print(
                 "  [green]\u2713[/green] {} [{:,} entities] ({:.0f}ms)".format(
-                    ft.name, entity_count, elapsed_ms,
+                    ft.name,
+                    entity_count,
+                    elapsed_ms,
                 )
             )
 
-        results.append({
-            "table": ft.name,
-            "status": "published",
-            "entities": entity_count,
-            "duration_ms": round(elapsed_ms, 1),
-        })
+        results.append(
+            {
+                "table": ft.name,
+                "status": "published",
+                "entities": entity_count,
+                "duration_ms": round(elapsed_ms, 1),
+            }
+        )
 
     elapsed_total = time.perf_counter() - t0_total
     published_count = sum(1 for r in results if r["status"] == "published")
@@ -1767,6 +1853,7 @@ def _publish_tables(
         console.print()
         console.print(
             "[bold]Published {} table(s) in {:.1f}s[/bold]".format(
-                published_count, elapsed_total,
+                published_count,
+                elapsed_total,
             )
         )

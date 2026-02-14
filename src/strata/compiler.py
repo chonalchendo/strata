@@ -172,7 +172,9 @@ class IbisCompiler:
 
         return schema
 
-    def _apply_aggregates(self, expr: ir.Table, table: core.FeatureTable) -> ir.Table:
+    def _apply_aggregates(
+        self, expr: ir.Table, table: core.FeatureTable
+    ) -> ir.Table:
         """Compile aggregate() definitions using trailing range windows.
 
         Uses Ibis trailing_range_window to compute rolling aggregates per
@@ -216,5 +218,7 @@ class IbisCompiler:
             expr = expr.mutate(**{name: agg_col})
 
         # Select entity keys + timestamp + aggregate features (drop raw columns)
-        output_cols = group_keys + [ts_field] + [a["name"] for a in table._aggregates]
+        output_cols = (
+            group_keys + [ts_field] + [a["name"] for a in table._aggregates]
+        )
         return expr.select(output_cols).distinct()

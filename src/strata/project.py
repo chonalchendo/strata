@@ -30,9 +30,8 @@ import strata.errors as errors
 import strata.settings as settings
 
 if TYPE_CHECKING:
-    import strata.backends as backends
     import strata.core as core
-    import strata.serving as serving
+    import strata.infra as infra
 
 
 class StrataProject:
@@ -47,9 +46,11 @@ class StrataProject:
     def __init__(self, strata_settings: settings.StrataSettings) -> None:
         self._settings = strata_settings
         env_config = strata_settings.active_environment
-        self._backend: backends.BackendKind = env_config.backend
-        self._registry: backends.RegistryKind = env_config.registry
-        self._online_store: serving.OnlineStoreKind | None = env_config.online_store
+        self._backend: infra.BackendKind = env_config.backend
+        self._registry: infra.RegistryKind = env_config.registry
+        self._online_store: infra.OnlineStoreKind | None = (
+            env_config.online_store
+        )
 
     @property
     def name(self) -> str:
@@ -95,9 +96,7 @@ class StrataProject:
                 dataset_obj = obj.obj
 
         if dataset_obj is None:
-            available = [
-                o.name for o in discovered if o.kind == "dataset"
-            ]
+            available = [o.name for o in discovered if o.kind == "dataset"]
             available_str = ", ".join(available) if available else "(none)"
             raise errors.StrataError(
                 context=f"Retrieving dataset '{name}'",
@@ -153,9 +152,7 @@ class StrataProject:
                     project=self,
                 )
 
-        available = [
-            o.name for o in discovered if o.kind == "feature_table"
-        ]
+        available = [o.name for o in discovered if o.kind == "feature_table"]
         available_str = ", ".join(available) if available else "(none)"
         raise errors.StrataError(
             context=f"Retrieving feature table '{name}'",
@@ -255,8 +252,12 @@ class BoundDataset:
 
         if start_dt >= end_dt:
             raise errors.StrataError(
-                context="Reading features from dataset '{}'".format(self._dataset.name),
-                cause="start ({}) must be before end ({})".format(start_dt.isoformat(), end_dt.isoformat()),
+                context="Reading features from dataset '{}'".format(
+                    self._dataset.name
+                ),
+                cause="start ({}) must be before end ({})".format(
+                    start_dt.isoformat(), end_dt.isoformat()
+                ),
                 fix="Provide a start date earlier than the end date.",
             )
 
@@ -275,14 +276,19 @@ class BoundDataset:
             if table_name not in table_features:
                 table_features[table_name] = []
             # Add label only if not already in the list
-            if not any(f.name == label.name and f.table_name == label.table_name for f in table_features[table_name]):
+            if not any(
+                f.name == label.name and f.table_name == label.table_name
+                for f in table_features[table_name]
+            ):
                 table_features[table_name].append(label)
 
         # Determine the spine table (first table referenced by dataset features)
         referenced_tables = list(table_features.keys())
         if not referenced_tables:
             raise errors.StrataError(
-                context="Reading features from dataset '{}'".format(self._dataset.name),
+                context="Reading features from dataset '{}'".format(
+                    self._dataset.name
+                ),
                 cause="Dataset has no feature references",
                 fix="Add features to the dataset definition.",
             )
@@ -295,7 +301,10 @@ class BoundDataset:
         # Read data and build spine if not provided
         if spine is None:
             spine = self._build_implicit_spine(
-                spine_table_name, all_tables, start_dt, end_dt,
+                spine_table_name,
+                all_tables,
+                start_dt,
+                end_dt,
             )
 
         # Build FeatureTableData for each referenced table
@@ -304,15 +313,21 @@ class BoundDataset:
             table_def = all_tables.get(tbl_name)
             if table_def is None:
                 raise errors.StrataError(
-                    context="Reading features from dataset '{}'".format(self._dataset.name),
-                    cause="Table '{}' referenced by features is not defined".format(tbl_name),
+                    context="Reading features from dataset '{}'".format(
+                        self._dataset.name
+                    ),
+                    cause="Table '{}' referenced by features is not defined".format(
+                        tbl_name
+                    ),
                     fix="Ensure the table definition exists in the project.",
                 )
 
             # Read the feature data from backend
             if not self._project._backend.table_exists(tbl_name):
                 raise errors.StrataError(
-                    context="Reading features from dataset '{}'".format(self._dataset.name),
+                    context="Reading features from dataset '{}'".format(
+                        self._dataset.name
+                    ),
                     cause="Table '{}' has no built data".format(tbl_name),
                     fix="Run `strata build` first to materialize the table.",
                 )
@@ -326,7 +341,9 @@ class BoundDataset:
 
             # Get TTL from source if available (RealTimeSource)
             ttl = None
-            if hasattr(table_def, "source") and hasattr(table_def.source, "ttl"):
+            if hasattr(table_def, "source") and hasattr(
+                table_def.source, "ttl"
+            ):
                 ttl = table_def.source.ttl
 
             feature_table_data_list.append(
@@ -356,12 +373,16 @@ class BoundDataset:
         )
 
         # Build output column mapping (raw feature name -> dataset output name)
-        output_columns = _build_output_column_map(self._dataset, spine_timestamp)
+        output_columns = _build_output_column_map(
+            self._dataset, spine_timestamp
+        )
 
         # Select and rename columns for the output
         # Start with entity key columns and timestamp
         if spine_table_def is not None:
-            keep_cols = list(spine_table_def.entity.join_keys) + [spine_timestamp]
+            keep_cols = list(spine_table_def.entity.join_keys) + [
+                spine_timestamp
+            ]
         else:
             keep_cols = [spine_timestamp]
 
@@ -378,7 +399,10 @@ class BoundDataset:
         # Add label column if present
         if self._dataset.label is not None:
             label = self._dataset.label
-            if label.name in result.column_names and label.name not in keep_cols:
+            if (
+                label.name in result.column_names
+                and label.name not in keep_cols
+            ):
                 keep_cols.append(label.name)
 
         # Select only the columns we need
@@ -436,7 +460,9 @@ class BoundDataset:
             table_results[table_name] = result
 
         # Build output column mapping
-        output_columns = _build_output_column_map(self._dataset, "_feature_timestamp")
+        output_columns = _build_output_column_map(
+            self._dataset, "_feature_timestamp"
+        )
 
         # Combine feature columns from all tables into a single row
         combined: dict[str, list] = {}
@@ -449,7 +475,9 @@ class BoundDataset:
             for feat_name in feature_names:
                 output_name = output_columns.get(feat_name, feat_name)
                 if has_data and feat_name in result.column_names:
-                    combined[output_name] = [result.column(feat_name).to_pylist()[0]]
+                    combined[output_name] = [
+                        result.column(feat_name).to_pylist()[0]
+                    ]
                 else:
                     combined[output_name] = [None]
 
@@ -491,14 +519,20 @@ class BoundDataset:
         table_def = all_tables.get(spine_table_name)
         if table_def is None:
             raise errors.StrataError(
-                context="Building implicit spine for dataset '{}'".format(self._dataset.name),
-                cause="Spine table '{}' is not defined".format(spine_table_name),
+                context="Building implicit spine for dataset '{}'".format(
+                    self._dataset.name
+                ),
+                cause="Spine table '{}' is not defined".format(
+                    spine_table_name
+                ),
                 fix="Ensure the table definition exists in the project.",
             )
 
         if not self._project._backend.table_exists(spine_table_name):
             raise errors.StrataError(
-                context="Building implicit spine for dataset '{}'".format(self._dataset.name),
+                context="Building implicit spine for dataset '{}'".format(
+                    self._dataset.name
+                ),
                 cause="Table '{}' has no built data".format(spine_table_name),
                 fix="Run `strata build` first to materialize the table.",
             )
@@ -508,8 +542,12 @@ class BoundDataset:
         ts_col = table_def.timestamp_field
         if ts_col is None:
             raise errors.StrataError(
-                context="Building implicit spine for dataset '{}'".format(self._dataset.name),
-                cause="Spine table '{}' has no timestamp_field".format(spine_table_name),
+                context="Building implicit spine for dataset '{}'".format(
+                    self._dataset.name
+                ),
+                cause="Spine table '{}' has no timestamp_field".format(
+                    spine_table_name
+                ),
                 fix="Set timestamp_field on the table definition, or provide an explicit spine.",
             )
         entity_keys = table_def.entity.join_keys
